@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local environment
+.env
+.env.*
+
+# Dataset files
+data/raw/
+data/processed/
+data/derived/
+
+# Generated outputs
+outputs/
+artifacts/
+reports/
