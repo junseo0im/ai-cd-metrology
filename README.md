@@ -42,3 +42,4 @@ AI 기반 검사 시스템입니다.
 4. wafer map과 검사 결과 시각화
 
 세부 계획은 [로드맵](docs/roadmap.md)에 정리되어 있습니다.
+CD 측정 방법과 평가 기준은 [CD 측정 문서](docs/cd_measurement.md)에 정리되어 있습니다.
