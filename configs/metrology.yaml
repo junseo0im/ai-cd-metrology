@@ -10,12 +10,27 @@ calibration:
   scale_y_um_per_px: null
 
 metrology:
-  # The measurement direction must be defined before physical conversion.
-  measurement_axis: null
-  roi: null  # TBD: Define a common ROI policy for all three methods.
+  measurement_axis: x
+
+  # PILOT candidates from contact-sheet review; these are not final ROI values.
+  roi:
+    strategy: position_specific_normalized
+    coordinate_space: normalized
+    common_x_range:
+      x_min: 0.08
+      x_max: 0.92
+    by_pattern_position:
+      center:
+        y_min: 0.15
+        y_max: 0.85
+      left-top:
+        y_min: 0.35
+        y_max: 0.90
+      right-bottom:
+        y_min: 0.10
+        y_max: 0.65
 
   gradient_canny:
     canny_threshold_low: null
     canny_threshold_high: null
     edge_pairing: null  # TBD: Define how detected edges form line/gap pairs.
-
