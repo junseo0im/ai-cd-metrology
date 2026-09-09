@@ -23,3 +23,5 @@ data/derived/
 outputs/
 artifacts/
 reports/
+
+*.egg-info/

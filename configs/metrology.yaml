@@ -1,0 +1,21 @@
+data:
+  # TBD: Configure a local or mounted dataset root outside version control.
+  root: null
+
+calibration:
+  # TBD: Select calibration metadata after microscope calibration is verified.
+  calibration_id: null
+  objective: null
+  scale_x_um_per_px: null
+  scale_y_um_per_px: null
+
+metrology:
+  # The measurement direction must be defined before physical conversion.
+  measurement_axis: null
+  roi: null  # TBD: Define a common ROI policy for all three methods.
+
+  gradient_canny:
+    canny_threshold_low: null
+    canny_threshold_high: null
+    edge_pairing: null  # TBD: Define how detected edges form line/gap pairs.
+
