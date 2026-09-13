@@ -113,28 +113,61 @@ def test_measure_fails_when_candidate_count_is_insufficient() -> None:
     assert result.failure_reason is not None
 
 
-def test_measure_is_pixel_only_even_when_calibration_is_supplied() -> None:
+def test_measure_without_calibration_keeps_physical_values_none() -> None:
     image = _vertical_dark_bands(
         ((10, 20), (40, 50), (70, 80), (100, 110), (130, 140), (160, 170), (190, 200))
-    )
-
-    calibration = CalibrationRecord(
-        calibration_id="not-applied-in-this-phase",
-        objective="synthetic",
-        scale_x_um_per_px=0.5,
-        scale_y_um_per_px=0.5,
     )
 
     result = _full_image_algorithm().measure(
         image,
         _image_record(),
-        calibration,
     )[0]
 
     assert result.outer_width_um is None
     assert result.inner_width_um is None
     assert result.gap_um is None
     assert result.calibration_id is None
+
+
+@pytest.mark.parametrize("band_count", [3, 7])
+@pytest.mark.parametrize("partial_left", [False, True])
+def test_calibration_preserves_pixels_and_measurement_status(
+    band_count: int, partial_left: bool,
+) -> None:
+    bands = tuple((20 + 30 * i, 30 + 30 * i) for i in range(band_count))
+    if partial_left:
+        bands = ((0, 5),) + bands
+    image = _vertical_dark_bands(bands)
+    calibration = CalibrationRecord(
+        calibration_id="synthetic-calibration",
+        objective="synthetic",
+        scale_x_um_per_px=0.1,
+        scale_y_um_per_px=0.9,
+    )
+    algorithm = _full_image_algorithm()
+    pixel = algorithm.measure(image, _image_record())[0]
+    physical = algorithm.measure(image, _image_record(), calibration)[0]
+
+    assert physical.status is pixel.status
+    assert physical.failure_reason == pixel.failure_reason
+    assert physical.edge_coordinates == pixel.edge_coordinates
+    for field in ("outer_width", "inner_width", "gap"):
+        value_px = getattr(pixel, f"{field}_px")
+        assert getattr(physical, f"{field}_px") == value_px
+        value_um = getattr(physical, f"{field}_um")
+        if value_px is None:
+            assert value_um is None
+        else:
+            assert value_um == pytest.approx(value_px * 0.1)
+    if band_count < 7:
+        assert physical.status is MeasurementStatus.FAIL
+        assert physical.calibration_id is None
+    else:
+        expected_status = (
+            MeasurementStatus.WARNING if partial_left else MeasurementStatus.VALID
+        )
+        assert physical.status is expected_status
+        assert physical.calibration_id == calibration.calibration_id
 
 
 def test_signed_gradient_profile_uses_median_and_keeps_polarity() -> None:

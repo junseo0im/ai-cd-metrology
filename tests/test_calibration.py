@@ -35,6 +35,14 @@ def test_missing_calibration_keeps_physical_values_none() -> None:
     assert gap_um is None
 
 
+def test_known_scale_converts_one_hundred_pixels() -> None:
+    calibration = CalibrationRecord(
+        calibration_id="known-synthetic", objective="synthetic",
+        scale_x_um_per_px=0.1, scale_y_um_per_px=0.2,
+    )
+    assert pixels_to_micrometers(100.0, calibration, axis="x") == pytest.approx(10.0)
+
+
 def test_calibration_converts_all_three_measurements() -> None:
     calibration = CalibrationRecord(
         calibration_id="cal-001",
