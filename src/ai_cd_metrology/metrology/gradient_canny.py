@@ -28,6 +28,7 @@ PILOT_CANNY_THRESHOLD_HIGH = 150
 CHARACTERIZATION_CANNY_THRESHOLD_LOW = 20
 CHARACTERIZATION_CANNY_THRESHOLD_HIGH = 60
 PROFILE_PEAK_RELATIVE_THRESHOLD = 0.35
+DEFAULT_LOCAL_BAND_COUNT = 5
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,6 +107,25 @@ class PairingValidationResult:
 
 
 @dataclass(frozen=True, slots=True)
+class LocalBandMeasurement:
+    '''Pixel-only local diagnostic; y bounds are original-image half-open bounds.
+
+    Candidate x positions remain ROI-relative. Medians are Outer/Inner/Gap px;
+    raw medians may remain available on FAIL and must be read with status.
+    '''
+
+    band_index: int
+    y_bounds_px: tuple[int, int]
+    profile: SignedGradientProfile
+    pairing: DarkBandPairingDiagnostic
+    candidates: tuple[PixelPairingCandidate, ...]
+    validation: PairingValidationResult
+    medians: tuple[float, float, float] | None
+    status: MeasurementStatus
+    failure_reason: str | None
+
+
+@dataclass(frozen=True, slots=True)
 class GradientCannyMeasurementDiagnostic:
     """Raw pixel-pairing detail retained outside the scalar result schema."""
 
@@ -115,6 +135,7 @@ class GradientCannyMeasurementDiagnostic:
     pairing: DarkBandPairingDiagnostic
     candidates: tuple[PixelPairingCandidate, ...]
     validation: PairingValidationResult
+    local_bands: tuple[LocalBandMeasurement, ...] = ()
 
 
 def _to_grayscale_uint8(image: NDArray[np.generic]) -> NDArray[np.uint8]:
@@ -409,6 +430,51 @@ def _measurement_status(
     return MeasurementStatus.VALID, None
 
 
+def compute_local_band_bounds(
+    roi_height_px: int,
+    band_count: int,
+) -> tuple[tuple[int, int], ...]:
+    '''Partition [0, H) into deterministic contiguous half-open local bands.'''
+
+    if roi_height_px <= 0:
+        raise ValueError('roi_height_px must be positive')
+    if band_count < 1:
+        raise ValueError('band_count must be at least 1')
+    if roi_height_px < band_count:
+        raise ValueError('roi_height_px must be at least band_count')
+    return tuple(
+        (index * roi_height_px // band_count, (index + 1) * roi_height_px // band_count)
+        for index in range(band_count)
+    )
+
+
+def measure_local_band(
+    x_gradient_band: NDArray[np.generic],
+    *,
+    band_index: int,
+    y_bounds_px: tuple[int, int],
+) -> LocalBandMeasurement:
+    '''Wrap the existing pairing chain without recomputing blur or Sobel.'''
+
+    profile = characterize_signed_x_gradient(x_gradient_band)
+    pairing = pair_dark_band_doublets(profile)
+    candidates = build_pixel_pairing_candidates(pairing)
+    validation = validate_pairing_candidates(pairing, candidates)
+    medians = _candidate_medians(candidates)
+    status, failure_reason = _measurement_status(pairing, candidates, validation, medians)
+    return LocalBandMeasurement(
+        band_index=band_index,
+        y_bounds_px=y_bounds_px,
+        profile=profile,
+        pairing=pairing,
+        candidates=candidates,
+        validation=validation,
+        medians=medians,
+        status=status,
+        failure_reason=failure_reason,
+    )
+
+
 def _representative_candidate(
     candidates: tuple[PixelPairingCandidate, ...],
     medians: tuple[float, float, float],
@@ -444,8 +510,12 @@ class GradientCannyMetrology(MetrologyAlgorithm):
     def __init__(
         self,
         roi_by_pattern_position: Mapping[str, NormalizedROI] | None = None,
+        band_count: int = DEFAULT_LOCAL_BAND_COUNT,
     ) -> None:
         self._roi_by_pattern_position = dict(roi_by_pattern_position or {})
+        if band_count < 1:
+            raise ValueError('band_count must be at least 1')
+        self._band_count = band_count
 
     @property
     def method(self) -> MetrologyMethod:
@@ -480,6 +550,18 @@ class GradientCannyMetrology(MetrologyAlgorithm):
         pairing = pair_dark_band_doublets(profile)
         candidates = build_pixel_pairing_candidates(pairing)
         validation = validate_pairing_candidates(pairing, candidates)
+        band_bounds = compute_local_band_bounds(
+            edge_diagnostics.x_gradient.shape[0], self._band_count
+        )
+        roi_y0 = roi_bounds[1]
+        local_bands = tuple(
+            measure_local_band(
+                edge_diagnostics.x_gradient[y0:y1],
+                band_index=index,
+                y_bounds_px=(roi_y0 + y0, roi_y0 + y1),
+            )
+            for index, (y0, y1) in enumerate(band_bounds)
+        )
         return GradientCannyMeasurementDiagnostic(
             roi_bounds=roi_bounds,
             edge_diagnostics=edge_diagnostics,
@@ -487,6 +569,7 @@ class GradientCannyMetrology(MetrologyAlgorithm):
             pairing=pairing,
             candidates=candidates,
             validation=validation,
+            local_bands=local_bands,
         )
 
     def measure(

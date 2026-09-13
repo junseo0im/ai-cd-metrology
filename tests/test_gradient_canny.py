@@ -1,13 +1,16 @@
 from pathlib import Path
+from dataclasses import asdict
 
 import numpy as np
 import pytest
 
 from ai_cd_metrology.metrology.gradient_canny import (
     GradientCannyMetrology,
+    DEFAULT_LOCAL_BAND_COUNT,
     SignedGradientProfile,
     build_pixel_pairing_candidates,
     characterize_signed_x_gradient,
+    compute_local_band_bounds,
     extract_edge_diagnostics,
     pair_dark_band_doublets,
     validate_pairing_candidates,
@@ -38,7 +41,9 @@ def _image_record(*, pattern_position: str = "center") -> ImageRecord:
     )
 
 
-def _full_image_algorithm() -> GradientCannyMetrology:
+def _full_image_algorithm(
+    band_count: int = DEFAULT_LOCAL_BAND_COUNT,
+) -> GradientCannyMetrology:
     return GradientCannyMetrology(
         {
             "center": NormalizedROI(
@@ -47,7 +52,8 @@ def _full_image_algorithm() -> GradientCannyMetrology:
                 x_max=1.0,
                 y_max=1.0,
             )
-        }
+        },
+        band_count=band_count,
     )
 
 
@@ -281,3 +287,115 @@ def test_pairing_validation_fails_with_empty_candidates() -> None:
         "candidate_count_below_3: 0",
         "no_detected_peaks",
     )
+
+
+@pytest.mark.parametrize('height,count', [(10, 5), (13, 5), (10, 1)])
+def test_local_band_bounds_cover_height_without_gaps(height: int, count: int) -> None:
+    bounds = compute_local_band_bounds(height, count)
+
+    assert len(bounds) == count
+    assert bounds[0][0] == 0
+    assert bounds[-1][1] == height
+    assert all(start < end for start, end in bounds)
+    assert all(left[1] == right[0] for left, right in zip(bounds, bounds[1:]))
+    assert sum(end - start for start, end in bounds) == height
+    assert bounds == compute_local_band_bounds(height, count)
+
+
+@pytest.mark.parametrize('height,count', [(0, 5), (-1, 5), (10, 0), (10, -1), (3, 5)])
+def test_invalid_local_band_bounds_rejected(height: int, count: int) -> None:
+    with pytest.raises(ValueError):
+        compute_local_band_bounds(height, count)
+
+
+def _local_test_image() -> np.ndarray:
+    return _vertical_dark_bands(
+        ((20, 30), (50, 60), (80, 90), (110, 120), (140, 150), (170, 180), (200, 210))
+    )
+
+
+def test_single_band_matches_whole_roi_and_extracts_once(monkeypatch) -> None:
+    import ai_cd_metrology.metrology.gradient_canny as gradient_module
+
+    calls = []
+    original_extract = gradient_module.extract_edge_diagnostics
+
+    def counted_extract(roi):
+        calls.append(roi.shape)
+        return original_extract(roi)
+
+    monkeypatch.setattr(gradient_module, 'extract_edge_diagnostics', counted_extract)
+    image = _local_test_image()
+    # Nonzero original-image y offset verifies local metadata coordinates.
+    roi = NormalizedROI(0.0, 0.25, 1.0, 0.75)
+    algorithm = GradientCannyMetrology({'center': roi}, band_count=1)
+    diagnostic = algorithm.analyze(image, _image_record())
+    band = diagnostic.local_bands[0]
+
+    assert len(calls) == 1
+    assert len(diagnostic.local_bands) == 1
+    assert band.band_index == 0
+    assert band.y_bounds_px == (16, 48)
+    assert band.candidates == diagnostic.candidates
+    assert band.medians == tuple(
+        float(np.median([getattr(candidate, field) for candidate in diagnostic.candidates]))
+        for field in ('outer_width_px', 'inner_width_px', 'gap_px')
+    )
+    np.testing.assert_array_equal(band.profile.values, diagnostic.profile.values)
+    assert band.validation == diagnostic.validation
+    whole_result = algorithm.measure(image, _image_record())[0]
+    assert band.status is whole_result.status
+
+
+def test_local_status_is_independent_and_gradient_is_sliced() -> None:
+    image = _local_test_image()
+    image[:13] = 255
+    image[51:, :5] = 0
+    algorithm = _full_image_algorithm()
+    diagnostic = algorithm.analyze(image, _image_record())
+    statuses = {band.status for band in diagnostic.local_bands}
+
+    assert len(diagnostic.local_bands) == DEFAULT_LOCAL_BAND_COUNT
+    assert MeasurementStatus.VALID in statuses
+    assert MeasurementStatus.FAIL in statuses
+    assert MeasurementStatus.WARNING in statuses
+    for band in diagnostic.local_bands:
+        y0, y1 = band.y_bounds_px
+        np.testing.assert_array_equal(
+            band.profile.values,
+            np.median(diagnostic.edge_diagnostics.x_gradient[y0:y1], axis=0),
+        )
+    # A local FAIL is not rolled up to image-level FAIL.
+    assert algorithm.measure(image, _image_record())[0].status is MeasurementStatus.VALID
+
+
+def test_band_count_and_calibration_do_not_change_image_level_path() -> None:
+    image = _local_test_image()
+    image[:13] = 255
+    calibration = CalibrationRecord('local-test', 'synthetic', 0.1, 0.2)
+    baseline = None
+    for band_count in (1, 3, 5):
+        algorithm = _full_image_algorithm(band_count)
+        before = algorithm.analyze(image, _image_record())
+        pixel = algorithm.measure(image, _image_record())[0]
+        physical = algorithm.measure(image, _image_record(), calibration)[0]
+        after = algorithm.analyze(image, _image_record())
+        values = asdict(pixel)
+        values.pop('runtime_ms')
+        if baseline is None:
+            baseline = values
+        assert values == baseline
+        assert physical.status is pixel.status
+        assert physical.failure_reason == pixel.failure_reason
+        assert physical.edge_coordinates == pixel.edge_coordinates
+        for field in ('outer_width', 'inner_width', 'gap'):
+            assert getattr(physical, f'{field}_px') == getattr(pixel, f'{field}_px')
+            assert getattr(physical, f'{field}_um') == pytest.approx(
+                getattr(pixel, f'{field}_px') * 0.1
+            )
+        for left, right in zip(before.local_bands, after.local_bands, strict=True):
+            assert left.candidates == right.candidates
+            assert left.medians == right.medians
+            assert left.status is right.status
+            np.testing.assert_array_equal(left.profile.values, right.profile.values)
+            assert not hasattr(left, 'calibration_id')
