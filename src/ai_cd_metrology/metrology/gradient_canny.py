@@ -8,6 +8,7 @@ import cv2
 import numpy as np
 from numpy.typing import NDArray
 
+from ..calibration import convert_pixel_measurements
 from ..roi import NormalizedROI, PixelBounds, crop_normalized_roi
 from ..schemas import (
     CalibrationRecord,
@@ -412,7 +413,11 @@ def _representative_candidate(
     candidates: tuple[PixelPairingCandidate, ...],
     medians: tuple[float, float, float],
 ) -> PixelPairingCandidate:
-    """Choose the candidate closest to all three scalar median measurements."""
+    """Choose an actual candidate closest to the reported pixel median triplet.
+
+    Reported distances are medians across valid candidates; this candidate's
+    distances need not equal them, especially for an even candidate count.
+    """
 
     outer_median, inner_median, gap_median = medians
     return min(
@@ -434,7 +439,7 @@ _POSITION_ALIASES = {
 
 
 class GradientCannyMetrology(MetrologyAlgorithm):
-    """Pixel-only implementation of the validated Gradient/Canny pipeline."""
+    """Measure from signed Sobel-x; Canny is diagnostic only, not used in pairing."""
 
     def __init__(
         self,
@@ -490,13 +495,12 @@ class GradientCannyMetrology(MetrologyAlgorithm):
         image_record: ImageRecord,
         calibration: CalibrationRecord | None = None,
     ) -> list[MeasurementResult]:
-        """Return one median-aggregated, pixel-only measurement result.
+        """Return one median-aggregated measurement, optionally calibrated on x.
 
-        Calibration is intentionally not applied in this phase. Raw per-window
-        candidates remain available through :meth:`analyze`.
+        Calibration affects only the final representative distances. Raw
+        per-window pixel candidates remain available through :meth:`analyze`.
         """
 
-        del calibration
         started_at = perf_counter()
         diagnostic = self.analyze(image, image_record)
         medians = _candidate_medians(diagnostic.candidates)
@@ -518,6 +522,8 @@ class GradientCannyMetrology(MetrologyAlgorithm):
                 medians,
             )
             x0, y0, _, y1 = diagnostic.roi_bounds
+            # E1-E6 x positions come from the median-y 1D profile. The ROI-center
+            # y below is a display placeholder, not a measured edge y position.
             representative_y = y0 + (y1 - y0 - 1) / 2.0
             edge_coordinates = [
                 (float(x0 + edge_x), float(representative_y))
@@ -531,6 +537,14 @@ class GradientCannyMetrology(MetrologyAlgorithm):
                 )
             ]
 
+        outer_width_um, inner_width_um, gap_um = convert_pixel_measurements(
+            outer_width_px, inner_width_px, gap_px, calibration, axis="x"
+        )
+        applied_calibration_id = (
+            calibration.calibration_id
+            if calibration is not None and outer_width_um is not None
+            else None
+        )
         runtime_ms = (perf_counter() - started_at) * 1000.0
         return [
             MeasurementResult(
@@ -540,10 +554,10 @@ class GradientCannyMetrology(MetrologyAlgorithm):
                 outer_width_px=outer_width_px,
                 inner_width_px=inner_width_px,
                 gap_px=gap_px,
-                outer_width_um=None,
-                inner_width_um=None,
-                gap_um=None,
-                calibration_id=None,
+                outer_width_um=outer_width_um,
+                inner_width_um=inner_width_um,
+                gap_um=gap_um,
+                calibration_id=applied_calibration_id,
                 edge_coordinates=edge_coordinates,
                 status=status,
                 failure_reason=failure_reason,

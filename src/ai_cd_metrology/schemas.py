@@ -67,6 +67,9 @@ class MeasurementResult:
     inner_width_um: float | None
     gap_um: float | None
     calibration_id: str | None = None
+    # Gradient/Canny stores one representative candidate's E1-E6 points in
+    # original-image coordinates, not every ROI edge. Their y is an ROI-center
+    # placeholder: median-y aggregation detects x positions, not actual edge y.
     edge_coordinates: list[tuple[float, float]] = field(default_factory=list)
     status: MeasurementStatus = MeasurementStatus.VALID
     failure_reason: str | None = None
