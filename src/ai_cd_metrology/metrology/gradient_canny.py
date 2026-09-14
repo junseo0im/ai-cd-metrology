@@ -29,6 +29,9 @@ CHARACTERIZATION_CANNY_THRESHOLD_LOW = 20
 CHARACTERIZATION_CANNY_THRESHOLD_HIGH = 60
 PROFILE_PEAK_RELATIVE_THRESHOLD = 0.35
 DEFAULT_LOCAL_BAND_COUNT = 5
+# PILOT: 43-image upward-ratio audit found preserve max 1.2353 and known long
+# pair 2.0085. 1.6 is the rounded midpoint (~1.6219), not a defect/QC threshold.
+LONG_PAIRING_RELATIVE_CEILING = 1.6
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,8 +113,9 @@ class PairingValidationResult:
 class LocalBandMeasurement:
     '''Pixel-only local diagnostic; y bounds are original-image half-open bounds.
 
-    Candidate x positions remain ROI-relative. Medians are Outer/Inner/Gap px;
-    raw medians may remain available on FAIL and must be read with status.
+    Candidate x positions remain ROI-relative. candidates retains every raw
+    window; accepted_candidates excludes long_pairing_candidates. Medians use
+    accepted windows, may remain available on FAIL, and must be read with status.
     '''
 
     band_index: int
@@ -123,11 +127,20 @@ class LocalBandMeasurement:
     medians: tuple[float, float, float] | None
     status: MeasurementStatus
     failure_reason: str | None
+    long_pairing_candidates: tuple[PixelPairingCandidate, ...] = ()
+
+    @property
+    def accepted_candidates(self) -> tuple[PixelPairingCandidate, ...]:
+        return _exclude_long_candidates(self.candidates, self.long_pairing_candidates)
 
 
 @dataclass(frozen=True, slots=True)
 class GradientCannyMeasurementDiagnostic:
-    """Raw pixel-pairing detail retained outside the scalar result schema."""
+    """Raw windows in candidates; validation/measurement use accepted_candidates.
+
+    Flagged windows stay in long_pairing_candidates with original sequence
+    indices and E1-E6 coordinates. Indices are not physical finger identities.
+    """
 
     roi_bounds: PixelBounds
     edge_diagnostics: EdgeDiagnosticResult
@@ -136,6 +149,11 @@ class GradientCannyMeasurementDiagnostic:
     candidates: tuple[PixelPairingCandidate, ...]
     validation: PairingValidationResult
     local_bands: tuple[LocalBandMeasurement, ...] = ()
+    long_pairing_candidates: tuple[PixelPairingCandidate, ...] = ()
+
+    @property
+    def accepted_candidates(self) -> tuple[PixelPairingCandidate, ...]:
+        return _exclude_long_candidates(self.candidates, self.long_pairing_candidates)
 
 
 def _to_grayscale_uint8(image: NDArray[np.generic]) -> NDArray[np.uint8]:
@@ -406,6 +424,8 @@ def _measurement_status(
     candidates: tuple[PixelPairingCandidate, ...],
     validation: PairingValidationResult,
     medians: tuple[float, float, float] | None,
+    *,
+    long_pairing_candidates: tuple[PixelPairingCandidate, ...] = (),
 ) -> tuple[MeasurementStatus, str | None]:
     """Map pilot pairing validity to the existing measurement status enum."""
 
@@ -422,12 +442,59 @@ def _measurement_status(
 
     if reasons or validation.catastrophic_mispairing:
         return MeasurementStatus.FAIL, "; ".join(dict.fromkeys(reasons))
+    warnings = []
     if pairing.rejected_peaks:
-        return (
-            MeasurementStatus.WARNING,
-            f"rejected_gradient_peaks: {len(pairing.rejected_peaks)}",
-        )
+        warnings.append(f"rejected_gradient_peaks: {len(pairing.rejected_peaks)}")
+    if long_pairing_candidates:
+        warnings.append(f"long_pairing_candidates: {len(long_pairing_candidates)}")
+    if warnings:
+        return MeasurementStatus.WARNING, "; ".join(warnings)
     return MeasurementStatus.VALID, None
+
+
+def flag_long_pairing_candidates(
+    candidates: tuple[PixelPairingCandidate, ...],
+    *,
+    relative_ceiling: float = LONG_PAIRING_RELATIVE_CEILING,
+) -> tuple[PixelPairingCandidate, ...]:
+    """Flag only upward distance/median ratios in this raw candidate set.
+
+    Baselines are computed once before exclusion, independently for Outer,
+    Inner and Gap. No downward criterion, correction, or iterative filtering
+    is applied. Empty/nonpositive-median sets defer to existing validation.
+    """
+    if not np.isfinite(relative_ceiling) or relative_ceiling <= 1.0:
+        raise ValueError("relative_ceiling must be finite and greater than 1")
+    medians = _candidate_medians(candidates)
+    if medians is None or min(medians) <= 0 or not np.all(np.isfinite(medians)):
+        return ()
+    fields = ("outer_width_px", "inner_width_px", "gap_px")
+    return tuple(
+        candidate for candidate in candidates
+        if any(
+            getattr(candidate, field) / median > relative_ceiling
+            for field, median in zip(fields, medians, strict=True)
+        )
+    )
+
+
+def _exclude_long_candidates(
+    candidates: tuple[PixelPairingCandidate, ...],
+    flagged: tuple[PixelPairingCandidate, ...],
+) -> tuple[PixelPairingCandidate, ...]:
+    # Preserve order and sequence indices; never renumber or repair windows.
+    excluded = set(flagged)
+    return tuple(candidate for candidate in candidates if candidate not in excluded)
+
+
+def _guard_and_validate_candidates(
+    pairing: DarkBandPairingDiagnostic,
+    candidates: tuple[PixelPairingCandidate, ...],
+) -> tuple[tuple[PixelPairingCandidate, ...], PairingValidationResult]:
+    """Shared whole/local flow: raw windows -> upward guard -> validation."""
+    flagged = flag_long_pairing_candidates(candidates)
+    accepted = _exclude_long_candidates(candidates, flagged)
+    return flagged, validate_pairing_candidates(pairing, accepted)
 
 
 def compute_local_band_bounds(
@@ -459,9 +526,12 @@ def measure_local_band(
     profile = characterize_signed_x_gradient(x_gradient_band)
     pairing = pair_dark_band_doublets(profile)
     candidates = build_pixel_pairing_candidates(pairing)
-    validation = validate_pairing_candidates(pairing, candidates)
-    medians = _candidate_medians(candidates)
-    status, failure_reason = _measurement_status(pairing, candidates, validation, medians)
+    flagged, validation = _guard_and_validate_candidates(pairing, candidates)
+    accepted = _exclude_long_candidates(candidates, flagged)
+    medians = _candidate_medians(accepted)
+    status, failure_reason = _measurement_status(
+        pairing, accepted, validation, medians, long_pairing_candidates=flagged,
+    )
     return LocalBandMeasurement(
         band_index=band_index,
         y_bounds_px=y_bounds_px,
@@ -472,6 +542,7 @@ def measure_local_band(
         medians=medians,
         status=status,
         failure_reason=failure_reason,
+        long_pairing_candidates=flagged,
     )
 
 
@@ -549,7 +620,7 @@ class GradientCannyMetrology(MetrologyAlgorithm):
         profile = characterize_signed_x_gradient(edge_diagnostics.x_gradient)
         pairing = pair_dark_band_doublets(profile)
         candidates = build_pixel_pairing_candidates(pairing)
-        validation = validate_pairing_candidates(pairing, candidates)
+        flagged, validation = _guard_and_validate_candidates(pairing, candidates)
         band_bounds = compute_local_band_bounds(
             edge_diagnostics.x_gradient.shape[0], self._band_count
         )
@@ -570,6 +641,7 @@ class GradientCannyMetrology(MetrologyAlgorithm):
             candidates=candidates,
             validation=validation,
             local_bands=local_bands,
+            long_pairing_candidates=flagged,
         )
 
     def measure(
@@ -586,12 +658,13 @@ class GradientCannyMetrology(MetrologyAlgorithm):
 
         started_at = perf_counter()
         diagnostic = self.analyze(image, image_record)
-        medians = _candidate_medians(diagnostic.candidates)
+        medians = _candidate_medians(diagnostic.accepted_candidates)
         status, failure_reason = _measurement_status(
             diagnostic.pairing,
-            diagnostic.candidates,
+            diagnostic.accepted_candidates,
             diagnostic.validation,
             medians,
+            long_pairing_candidates=diagnostic.long_pairing_candidates,
         )
 
         edge_coordinates: list[tuple[float, float]] = []
@@ -601,7 +674,7 @@ class GradientCannyMetrology(MetrologyAlgorithm):
         if status is not MeasurementStatus.FAIL and medians is not None:
             outer_width_px, inner_width_px, gap_px = medians
             representative = _representative_candidate(
-                diagnostic.candidates,
+                diagnostic.accepted_candidates,
                 medians,
             )
             x0, y0, _, y1 = diagnostic.roi_bounds

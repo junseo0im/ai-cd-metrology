@@ -8,6 +8,8 @@ from ai_cd_metrology.metrology.gradient_canny import (
     GradientCannyMetrology,
     DEFAULT_LOCAL_BAND_COUNT,
     SignedGradientProfile,
+    PixelPairingCandidate,
+    flag_long_pairing_candidates,
     build_pixel_pairing_candidates,
     characterize_signed_x_gradient,
     compute_local_band_bounds,
@@ -399,3 +401,86 @@ def test_band_count_and_calibration_do_not_change_image_level_path() -> None:
             assert left.status is right.status
             np.testing.assert_array_equal(left.profile.values, right.profile.values)
             assert not hasattr(left, 'calibration_id')
+
+
+def _guard_candidate(index: int, outer: int, inner: int, gap: int = 118) -> PixelPairingCandidate:
+    x = index * 500
+    return PixelPairingCandidate(index, x, x + 16, x + 16 + inner,
+                                 x + outer, x + outer + gap, x + outer + gap + 16,
+                                 outer, inner, gap)
+
+
+def test_long_pairing_guard_flags_only_upward_long_candidate() -> None:
+    candidates = tuple(_guard_candidate(i, outer, outer - 32)
+                       for i, outer in enumerate((130, 132, 131, 270, 133, 131)))
+    assert flag_long_pairing_candidates(candidates) == (candidates[3],)
+    gap_candidates = tuple(_guard_candidate(i, 130, 98, 270 if i == 3 else 118) for i in range(6))
+    assert flag_long_pairing_candidates(gap_candidates) == (gap_candidates[3],)
+
+
+def test_long_pairing_guard_preserves_normal_like_candidates() -> None:
+    candidates = tuple(_guard_candidate(i, outer, outer - 32)
+                       for i, outer in enumerate((130, 132, 131, 133, 131)))
+    assert flag_long_pairing_candidates(candidates) == ()
+
+
+def test_long_pairing_guard_preserves_smaller_narrowing_candidate() -> None:
+    candidates = tuple(_guard_candidate(i, outer, outer - 32)
+                       for i, outer in enumerate((130, 132, 131, 100, 133, 131)))
+    assert flag_long_pairing_candidates(candidates) == ()
+
+
+def test_long_pairing_guard_handles_empty_candidates() -> None:
+    assert flag_long_pairing_candidates(()) == ()
+
+
+def test_long_pairing_guard_ceiling_is_strictly_exceeded() -> None:
+    normal = tuple(_guard_candidate(i, 200, 168) for i in range(4))
+    assert flag_long_pairing_candidates(normal + (_guard_candidate(4, 320, 168),), relative_ceiling=1.6) == ()
+    upward = _guard_candidate(4, 321, 168)
+    assert flag_long_pairing_candidates(normal + (upward,), relative_ceiling=1.6) == (upward,)
+
+
+@pytest.mark.parametrize('ceiling', [1.0, 0.0, float('nan'), float('inf')])
+def test_long_pairing_guard_rejects_invalid_ceiling(ceiling: float) -> None:
+    with pytest.raises(ValueError, match='finite and greater than 1'):
+        flag_long_pairing_candidates((), relative_ceiling=ceiling)
+
+
+def test_missing_band_long_pair_warns_in_whole_and_local_chains() -> None:
+    image = _vertical_dark_bands(tuple((10 + 30 * i, 20 + 30 * i) for i in range(15) if i != 7), width=480)
+    algorithm = _full_image_algorithm()
+    diagnostic = algorithm.analyze(image, _image_record())
+    result = algorithm.measure(image, _image_record())[0]
+    assert len(diagnostic.candidates) == 6  # Backward-compatible raw windows.
+    assert len(diagnostic.long_pairing_candidates) == 1
+    assert len(diagnostic.accepted_candidates) == 5
+    assert not set(diagnostic.accepted_candidates).intersection(diagnostic.long_pairing_candidates)
+    assert set(diagnostic.candidates) == set(diagnostic.accepted_candidates) | set(diagnostic.long_pairing_candidates)
+    assert result.status is MeasurementStatus.WARNING
+    assert result.failure_reason == 'long_pairing_candidates: 1'
+    for field in ('outer_width', 'inner_width', 'gap'):
+        expected = float(np.median([getattr(c, field + '_px') for c in diagnostic.accepted_candidates]))
+        assert getattr(result, field + '_px') == expected
+    for band in diagnostic.local_bands:
+        assert band.candidates == diagnostic.candidates
+        assert band.long_pairing_candidates == diagnostic.long_pairing_candidates
+        assert band.accepted_candidates == diagnostic.accepted_candidates
+        assert band.status is MeasurementStatus.WARNING
+        assert band.failure_reason == 'long_pairing_candidates: 1'
+    assert result.outer_width_um is None and result.calibration_id is None
+
+
+def test_long_pairing_guard_reuses_existing_insufficient_candidate_fail() -> None:
+    image = _vertical_dark_bands(tuple((10 + 30 * i, 20 + 30 * i) for i in range(8) if i != 3), width=280)
+    algorithm = _full_image_algorithm()
+    diagnostic = algorithm.analyze(image, _image_record())
+    result = algorithm.measure(image, _image_record())[0]
+    assert len(diagnostic.candidates) == 3
+    assert len(diagnostic.accepted_candidates) == 2
+    assert len(diagnostic.long_pairing_candidates) == 1
+    assert result.status is MeasurementStatus.FAIL
+    assert 'candidate_count_below_3: 2' in result.failure_reason
+    assert (result.outer_width_px, result.inner_width_px, result.gap_px) == (None, None, None)
+    assert result.edge_coordinates == []
+    assert all(b.status is MeasurementStatus.FAIL and len(b.accepted_candidates) == 2 for b in diagnostic.local_bands)
