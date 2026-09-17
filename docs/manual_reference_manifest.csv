@@ -1,0 +1,10 @@
+image_id,relative_path,source,wafer_id,die_id,pattern_position,selection_reason
+w1_11_c,data/raw/images/images/PASS_normal/w1_11_c.png,CURATED_IMAGES::PASS_normal,w1,11,center,Identity-only frozen-baseline grid for balanced position and wafer coverage
+w2_25_c,data/raw/images/images/PASS_normal/w2_25_c.png,CURATED_IMAGES::PASS_normal,w2,25,center,Identity-only frozen-baseline grid for balanced position and wafer coverage
+w3_37_c,data/raw/images/images/PASS_normal/w3_37_c.png,CURATED_IMAGES::PASS_normal,w3,37,center,Identity-only frozen-baseline grid for balanced position and wafer coverage
+w1_13_lt,data/raw/images/images/PASS_normal/w1_13_lt.png,CURATED_IMAGES::PASS_normal,w1,13,left-top,Identity-only frozen-baseline grid for balanced position and wafer coverage
+w2_26_lt,data/raw/images/images/PASS_normal/w2_26_lt.png,CURATED_IMAGES::PASS_normal,w2,26,left-top,Identity-only frozen-baseline grid for balanced position and wafer coverage
+w3_38_lt,data/raw/images/images/PASS_normal/w3_38_lt.png,CURATED_IMAGES::PASS_normal,w3,38,left-top,Identity-only frozen-baseline grid for balanced position and wafer coverage
+w1_25_rb,data/raw/images/images/PASS_normal/w1_25_rb.png,CURATED_IMAGES::PASS_normal,w1,25,right-bottom,Identity-only frozen-baseline grid for balanced position and wafer coverage
+w2_38_rb,data/raw/images/images/PASS_normal/w2_38_rb.png,CURATED_IMAGES::PASS_normal,w2,38,right-bottom,Identity-only frozen-baseline grid for balanced position and wafer coverage
+w3_11_rb,data/raw/images/images/PASS_normal/w3_11_rb.png,CURATED_IMAGES::PASS_normal,w3,11,right-bottom,Identity-only frozen-baseline grid for balanced position and wafer coverage
