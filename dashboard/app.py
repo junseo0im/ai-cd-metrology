@@ -18,19 +18,20 @@ from dashboard.adapters import (  # noqa: E402
     build_evaluation_record,
     build_method2,
     diagnostic_summary,
-    image_record_from_row,
+    load_dashboard_image,
     local_band_records,
     method_comparison_records,
     run_method2_analysis,
 )
 from dashboard.data_loader import (  # noqa: E402
+    DATASET_SCOPES,
+    catalog_for_scope,
     curated_catalog,
     filter_catalog,
     load_dataset_inventory,
     overview_snapshot,
 )
 from dashboard.visualization import analysis_overlay, image_to_rgb  # noqa: E402
-from ai_cd_metrology.image_io import load_image  # noqa: E402
 
 
 @st.cache_data(show_spinner=False)
@@ -219,8 +220,15 @@ def _result_record_table(record: dict[str, object]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def _render_image_analysis(catalog: pd.DataFrame) -> None:
+def _render_image_analysis(inventory: pd.DataFrame) -> None:
     st.subheader("Selected image analysis")
+    scope = st.radio(
+        "Dataset scope",
+        DATASET_SCOPES,
+        horizontal=True,
+        key="ia_dataset_scope",
+    )
+    catalog = catalog_for_scope(inventory, scope)
     selector_columns = st.columns(5)
     with selector_columns[0]:
         source_options = sorted(catalog["source"].unique())
@@ -249,8 +257,14 @@ def _render_image_analysis(catalog: pd.DataFrame) -> None:
     dataset_label = _dataset_display_label(row)
     st.session_state.selected_image_id = image_id
 
+    if scope == "Full inventory" and not bool(row["is_curated"]):
+        st.caption(
+            "Non-curated / evaluation data. Running analysis exposes this image result; "
+            "do not use it for subsequent Method 2 tuning if it is reserved for untouched validation."
+        )
+
     try:
-        image = load_image(image_record_from_row(row))
+        image = load_dashboard_image(row)
     except (FileNotFoundError, ValueError) as exc:
         image = None
         image_error = str(exc)
@@ -424,7 +438,7 @@ def _render_defect(catalog: pd.DataFrame) -> None:
     row = catalog.loc[catalog["image_id"].eq(image_id)].iloc[0]
     left, right = st.columns([2, 1])
     try:
-        image = load_image(image_record_from_row(row))
+        image = load_dashboard_image(row)
         left.image(image_to_rgb(image), caption="Original image", width="stretch")
     except (FileNotFoundError, ValueError) as exc:
         left.error(f"Image loading failed: {exc}")
@@ -505,7 +519,7 @@ def main() -> None:
     with tabs[0]:
         _render_overview(inventory)
     with tabs[1]:
-        _render_image_analysis(catalog)
+        _render_image_analysis(inventory)
     with tabs[2]:
         _render_method_comparison()
     with tabs[3]:

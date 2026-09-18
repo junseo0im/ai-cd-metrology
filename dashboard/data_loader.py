@@ -22,6 +22,8 @@ POSITION_ALIASES = {
     "right-bottom": "right-bottom",
 }
 
+DATASET_SCOPES = ("Curated only", "Full inventory")
+
 _FILENAME_PATTERN = re.compile(
     r"^(?P<wafer>w\d+)_(?P<die>\d+)_(?P<position>c|lt|rb)(?:_(?P<label>[a-z]+))?$",
     re.IGNORECASE,
@@ -145,6 +147,16 @@ def curated_catalog(inventory: pd.DataFrame) -> pd.DataFrame:
     if inventory.empty or "is_curated" not in inventory:
         return inventory.copy()
     return inventory.loc[inventory["is_curated"]].reset_index(drop=True)
+
+
+def catalog_for_scope(inventory: pd.DataFrame, scope: str) -> pd.DataFrame:
+    """Return the selectable catalog without running any measurement."""
+
+    if scope == "Curated only":
+        return curated_catalog(inventory)
+    if scope == "Full inventory":
+        return inventory.reset_index(drop=True)
+    raise ValueError(f"Unsupported dataset scope: {scope}")
 
 
 def filter_catalog(

@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import cv2
+import numpy as np
 import pandas as pd
 
 from ai_cd_metrology.metrology.gradient_canny import (
@@ -19,9 +21,14 @@ from ai_cd_metrology.schemas import (
 from dashboard.adapters import (
     DashboardAnalysis,
     build_evaluation_record,
+    load_dashboard_image,
     method_comparison_records,
 )
-from dashboard.data_loader import canonical_pattern_position, filter_catalog
+from dashboard.data_loader import (
+    canonical_pattern_position,
+    catalog_for_scope,
+    filter_catalog,
+)
 
 
 def test_canonical_pattern_position_maps_filename_aliases() -> None:
@@ -42,6 +49,46 @@ def test_filter_catalog_uses_exact_identity_values() -> None:
     result = filter_catalog(catalog, wafer_id="w2", pattern_position="left-top")
 
     assert result["image_id"].tolist() == ["b"]
+
+
+def test_catalog_for_scope_preserves_curated_default_and_full_inventory() -> None:
+    inventory = pd.DataFrame(
+        [
+            {"image_id": "curated", "is_curated": True},
+            {"image_id": "evaluation", "is_curated": False},
+        ]
+    )
+
+    assert catalog_for_scope(inventory, "Curated only")["image_id"].tolist() == [
+        "curated"
+    ]
+    assert catalog_for_scope(inventory, "Full inventory")["image_id"].tolist() == [
+        "curated",
+        "evaluation",
+    ]
+
+
+def test_dashboard_image_loader_supports_unicode_path(tmp_path: Path) -> None:
+    image = np.arange(12, dtype=np.uint8).reshape(3, 4)
+    image_path = tmp_path / "결함" / "sample.png"
+    image_path.parent.mkdir()
+    success, encoded = cv2.imencode(".png", image)
+    assert success
+    encoded.tofile(image_path)
+
+    loaded = load_dashboard_image(
+        {
+            "image_id": "sample",
+            "file_path": str(image_path),
+            "wafer_id": "w1",
+            "die_id": "11",
+            "pattern_position": "right-bottom",
+            "capture_region": "standard",
+            "defect_label": "unknown",
+        }
+    )
+
+    np.testing.assert_array_equal(loaded, image)
 
 
 def _analysis() -> DashboardAnalysis:

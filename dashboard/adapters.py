@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
+import cv2
 import numpy as np
 from numpy.typing import NDArray
 import yaml
@@ -54,6 +55,25 @@ def image_record_from_row(row: Mapping[str, Any]) -> ImageRecord:
     )
 
 
+def load_dashboard_image(row: Mapping[str, Any]) -> NDArray[np.generic]:
+    """Load one selected image, including Unicode paths on Windows."""
+
+    image_record = image_record_from_row(row)
+    image_path = Path(image_record.file_path)
+    if not image_path.is_file():
+        raise FileNotFoundError(f"Image file does not exist: {image_path}")
+
+    try:
+        str(image_path).encode("ascii")
+    except UnicodeEncodeError:
+        encoded = np.fromfile(image_path, dtype=np.uint8)
+        image = cv2.imdecode(encoded, cv2.IMREAD_UNCHANGED)
+        if image is None:
+            raise ValueError(f"OpenCV could not decode image: {image_path}")
+        return image
+    return load_image(image_record)
+
+
 def build_method2(project_root: Path) -> GradientCannyMetrology:
     """Construct Method 2 from the frozen repository ROI configuration."""
 
@@ -81,7 +101,7 @@ def run_method2_analysis(
     """Run public frozen measurement and diagnostic APIs for one image only."""
 
     image_record = image_record_from_row(row)
-    image = load_image(image_record)
+    image = load_dashboard_image(row)
     result = algorithm.measure(image, image_record, calibration=None)[0]
     diagnostic = algorithm.analyze(image, image_record)
     return DashboardAnalysis(
