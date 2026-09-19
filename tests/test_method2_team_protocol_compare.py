@@ -13,6 +13,8 @@ from run_method2_team_protocol_compare import (
     MISSING_SLOT_MESSAGE,
     continuity_preserving_selection,
     recover_native_pixels,
+    visualization_measurements,
+    visualization_physical_intervals,
 )
 
 
@@ -77,3 +79,38 @@ def test_continuity_selection_preserves_ids_across_small_shifts() -> None:
     assert [item["target_id"] for item in selected] == ["L1", "L2", "L3", "L4", "L5"]
     assert [item["center_x_px"] for item in selected] == [31.0, 41.0, 51.0, 61.0, 71.0]
     assert all(item["status"] == "ok" for item in selected)
+
+
+def test_visualization_measurements_use_separate_left_to_right_ids() -> None:
+    candidates = [
+        _candidate(30.0, 2),
+        _candidate(10.0, 0),
+        _candidate(20.0, 1),
+    ]
+
+    displayed = visualization_measurements(candidates, "line")
+
+    assert [item["center_x_px"] for item in displayed] == [10.0, 20.0, 30.0]
+    assert [item["display_id"] for item in displayed] == ["L1", "L2", "L3"]
+    assert all("display_id" not in item for item in candidates)
+
+
+def test_visualization_physical_intervals_preserve_missing_slot() -> None:
+    sidewalls = [_candidate(float(x), index) for index, x in enumerate((10, 20, 30, 40))]
+    intervals = [
+        {**_candidate(15.0, 0), "parity": 0},
+        {**_candidate(35.0, 2), "parity": 0},
+    ]
+
+    displayed = visualization_physical_intervals(
+        {"sidewall": sidewalls, "interval": intervals},
+        line_parity=0,
+    )
+
+    assert len(displayed["line"]) == 2
+    assert len(displayed["gap"]) == 0
+    assert len(displayed["missing"]) == 1
+    assert sum(len(items) for items in displayed.values()) == 3
+    assert displayed["missing"][0]["physical_index"] == 1
+    assert displayed["missing"][0]["display_id"] == "X1"
+    assert displayed["missing"][0]["status"] == "error"

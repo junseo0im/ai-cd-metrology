@@ -52,6 +52,7 @@ OVERLAY_COLORS = {
     "gap": (255, 0, 255),
     "sidewall": (0, 255, 0),
 }
+DISPLAY_PREFIX = {"line": "L", "gap": "G", "sidewall": "S"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,6 +73,7 @@ class ImageComparison:
     measurements_by_y: dict[float, dict[str, list[dict[str, object]]]]
     runtime_ms: float
     overlay_path: Path
+    all_measurements_overlay_path: Path
     summary_path: Path
 
 
@@ -243,6 +245,80 @@ def _typed_candidates(
     }
 
 
+def visualization_measurements(
+    candidates: list[dict[str, object]],
+    measurement_type: str,
+) -> list[dict[str, object]]:
+    """Assign left-to-right display IDs that are independent of CSV target IDs."""
+
+    ordered = sorted(candidates, key=lambda item: float(item["center_x_px"]))
+    return [
+        {
+            **candidate,
+            "display_id": f"{DISPLAY_PREFIX[measurement_type]}{index}",
+        }
+        for index, candidate in enumerate(ordered, start=1)
+    ]
+
+
+def visualization_physical_intervals(
+    candidates: dict[str, list[dict[str, object]]],
+    line_parity: int,
+) -> dict[str, list[dict[str, object]]]:
+    """Represent every inter-sidewall slot, including invalid missing slots."""
+
+    sidewalls = sorted(
+        candidates["sidewall"],
+        key=lambda item: float(item["center_x_px"]),
+    )
+    valid_by_slot = {
+        int(interval["physical_index"]): interval
+        for interval in candidates["interval"]
+    }
+    displayed: dict[str, list[dict[str, object]]] = {
+        "line": [],
+        "gap": [],
+        "missing": [],
+    }
+    display_counts = {"line": 0, "gap": 0, "missing": 0}
+    for slot_index, (left_sidewall, right_sidewall) in enumerate(
+        zip(sidewalls, sidewalls[1:], strict=False)
+    ):
+        interval = valid_by_slot.get(slot_index)
+        if interval is None:
+            display_counts["missing"] += 1
+            left_x = float(left_sidewall["right_x_px"])
+            right_x = float(right_sidewall["left_x_px"])
+            displayed["missing"].append(
+                {
+                    "measurement_type": "missing",
+                    "display_id": f"X{display_counts['missing']}",
+                    "physical_index": slot_index,
+                    "left_x_px": left_x,
+                    "right_x_px": right_x,
+                    "center_x_px": (left_x + right_x) / 2.0,
+                    "width_px": None,
+                    "status": "error",
+                }
+            )
+            continue
+        measurement_type = (
+            "line" if int(interval["parity"]) == line_parity else "gap"
+        )
+        display_counts[measurement_type] += 1
+        displayed[measurement_type].append(
+            {
+                **interval,
+                "measurement_type": measurement_type,
+                "display_id": (
+                    f"{DISPLAY_PREFIX[measurement_type]}"
+                    f"{display_counts[measurement_type]}"
+                ),
+            }
+        )
+    return displayed
+
+
 def continuity_preserving_selection(
     candidates: list[dict[str, object]],
     reference_candidates: list[dict[str, object]],
@@ -358,6 +434,7 @@ def compare_image(
     image_id = image_path.stem
     rows: list[dict[str, object]] = []
     measurements_by_y: dict[float, dict[str, list[dict[str, object]]]] = {}
+    all_measurements_by_y: dict[float, dict[str, list[dict[str, object]]]] = {}
     scanlines: dict[
         float,
         tuple[int, dict[str, list[dict[str, object]]], dict[str, object]],
@@ -380,6 +457,17 @@ def compare_image(
 
     for y_fraction, (native_y, candidates, diagnostics) in scanlines.items():
         typed_candidates = _typed_candidates(candidates, reference_line_parity)
+        displayed_intervals = visualization_physical_intervals(
+            candidates,
+            reference_line_parity,
+        )
+        all_measurements_by_y[y_fraction] = {
+            **displayed_intervals,
+            "sidewall": visualization_measurements(
+                typed_candidates["sidewall"],
+                "sidewall",
+            ),
+        }
         selected = {
             measurement_type: continuity_preserving_selection(
                 typed_candidates[measurement_type],
@@ -438,6 +526,16 @@ def compare_image(
         overlay_path,
         scale_note=scale_note,
     )
+    all_measurements_overlay_path = (
+        overlay_directory / f"{image_id}_method2_all_measurements_overlay.png"
+    )
+    render_all_measurements_overlay(
+        recovery.image,
+        image_id,
+        all_measurements_by_y,
+        all_measurements_overlay_path,
+        scale_note=scale_note,
+    )
     summary_directory = output_root / "summaries"
     summary_path = summary_directory / f"{image_id}_method2_team_protocol_summary.txt"
     write_summary(
@@ -455,6 +553,7 @@ def compare_image(
         measurements_by_y=measurements_by_y,
         runtime_ms=runtime_ms,
         overlay_path=overlay_path,
+        all_measurements_overlay_path=all_measurements_overlay_path,
         summary_path=summary_path,
     )
 
@@ -670,6 +769,259 @@ def render_overlay(
     encoded.tofile(output_path)
 
 
+def render_all_measurements_overlay(
+    native_image: NDArray[np.generic],
+    image_id: str,
+    measurements_by_y: dict[float, dict[str, list[dict[str, object]]]],
+    output_path: Path,
+    *,
+    scale_note: str = "",
+) -> None:
+    """Render every detected candidate; display IDs never enter the team CSV."""
+
+    if native_image.ndim == 2:
+        base = cv2.cvtColor(native_image, cv2.COLOR_GRAY2BGR)
+    elif native_image.shape[2] == 4:
+        base = cv2.cvtColor(native_image, cv2.COLOR_BGRA2BGR)
+    else:
+        base = native_image.copy()
+    height, width = base.shape[:2]
+    left_margin = 62
+    title_height = 94
+    bottom_height = 42
+    canvas = np.full(
+        (title_height + height + bottom_height, left_margin + width + 12, 3),
+        248,
+        dtype=np.uint8,
+    )
+    image_top = title_height
+    canvas[image_top : image_top + height, left_margin : left_margin + width] = base
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    cv2.putText(
+        canvas,
+        "Frozen Method 2 - All Detected Measurements",
+        (left_margin + 180, 25),
+        font,
+        0.68,
+        (30, 30, 30),
+        2,
+        cv2.LINE_AA,
+    )
+    cv2.putText(
+        canvas,
+        f"{image_id}; scale = {UM_PER_NATIVE_PX} um/current px",
+        (left_margin + 205, 51),
+        font,
+        0.48,
+        (55, 55, 55),
+        1,
+        cv2.LINE_AA,
+    )
+    warning = scale_note or "provisional: acquisition-native scale not yet confirmed"
+    cv2.putText(
+        canvas,
+        warning,
+        (left_margin + 205, 71),
+        font,
+        0.42,
+        (0, 0, 180),
+        1,
+        cv2.LINE_AA,
+    )
+    legend_x = left_margin + 205
+    for measurement_type in MEASUREMENT_ORDER:
+        color = OVERLAY_COLORS[measurement_type]
+        cv2.putText(
+            canvas,
+            measurement_type.upper(),
+            (legend_x, 88),
+            font,
+            0.36,
+            color,
+            1,
+            cv2.LINE_AA,
+        )
+        legend_x += 95
+    cv2.putText(
+        canvas,
+        "MISSING",
+        (legend_x, 88),
+        font,
+        0.36,
+        (0, 0, 255),
+        1,
+        cv2.LINE_AA,
+    )
+
+    segment_offsets = {"line": -5, "gap": 5, "sidewall": 0}
+    for y_fraction, native_y in measurement_rows(height):
+        canvas_y = image_top + native_y
+        _draw_dashed_line(
+            canvas,
+            left_margin,
+            left_margin + width - 1,
+            canvas_y,
+        )
+        cv2.putText(
+            canvas,
+            f"Y{round(y_fraction * 100):02d} y={native_y}px",
+            (3, canvas_y + 4),
+            font,
+            0.34,
+            (30, 30, 30),
+            1,
+            cv2.LINE_AA,
+        )
+        for measurement_type in MEASUREMENT_ORDER:
+            color = OVERLAY_COLORS[measurement_type]
+            for display_index, measurement in enumerate(
+                measurements_by_y[y_fraction][measurement_type]
+            ):
+                left_x = int(round(float(measurement["left_x_px"])))
+                right_x = int(round(float(measurement["right_x_px"])))
+                segment_y = canvas_y + segment_offsets[measurement_type]
+                start = left_margin + left_x
+                end = left_margin + right_x
+                cv2.line(canvas, (start, segment_y), (end, segment_y), color, 2)
+                cv2.line(
+                    canvas,
+                    (start, segment_y - 4),
+                    (start, segment_y + 4),
+                    color,
+                    1,
+                )
+                cv2.line(
+                    canvas,
+                    (end, segment_y - 4),
+                    (end, segment_y + 4),
+                    color,
+                    1,
+                )
+                width_um = float(measurement["width_px"]) * UM_PER_NATIVE_PX
+                label = f"{measurement['display_id']} {width_um:.2f}"
+                (text_width, text_height), baseline = cv2.getTextSize(
+                    label,
+                    font,
+                    0.26,
+                    1,
+                )
+                center = (start + end) // 2
+                text_x = max(
+                    left_margin,
+                    min(
+                        center - text_width // 2,
+                        left_margin + width - text_width - 1,
+                    ),
+                )
+                if measurement_type == "line":
+                    text_y = canvas_y - 12
+                elif measurement_type == "gap":
+                    text_y = canvas_y + 21
+                else:
+                    text_y = (
+                        canvas_y - 28
+                        if display_index % 2 == 0
+                        else canvas_y + 37
+                    )
+                cv2.rectangle(
+                    canvas,
+                    (text_x - 1, text_y - text_height - 1),
+                    (text_x + text_width + 1, text_y + baseline + 1),
+                    (248, 248, 248),
+                    -1,
+                )
+                cv2.putText(
+                    canvas,
+                    label,
+                    (text_x, text_y),
+                    font,
+                    0.26,
+                    (15, 15, 15),
+                    1,
+                    cv2.LINE_AA,
+                )
+        for missing_index, measurement in enumerate(
+            measurements_by_y[y_fraction]["missing"]
+        ):
+            left_x = int(round(float(measurement["left_x_px"])))
+            right_x = int(round(float(measurement["right_x_px"])))
+            start = left_margin + left_x
+            end = left_margin + right_x
+            center = (start + end) // 2
+            error_color = (0, 0, 255)
+            for dash_start in range(start, end, 12):
+                cv2.line(
+                    canvas,
+                    (dash_start, canvas_y),
+                    (min(dash_start + 6, end), canvas_y),
+                    error_color,
+                    2,
+                )
+            cv2.line(
+                canvas,
+                (center - 6, canvas_y - 6),
+                (center + 6, canvas_y + 6),
+                error_color,
+                2,
+            )
+            cv2.line(
+                canvas,
+                (center - 6, canvas_y + 6),
+                (center + 6, canvas_y - 6),
+                error_color,
+                2,
+            )
+            label = f"{measurement['display_id']} missing"
+            (text_width, text_height), baseline = cv2.getTextSize(
+                label,
+                font,
+                0.28,
+                1,
+            )
+            text_x = max(
+                left_margin,
+                min(
+                    center - text_width // 2,
+                    left_margin + width - text_width - 1,
+                ),
+            )
+            text_y = canvas_y + 53 + (missing_index % 2) * 13
+            cv2.rectangle(
+                canvas,
+                (text_x - 1, text_y - text_height - 1),
+                (text_x + text_width + 1, text_y + baseline + 1),
+                (248, 248, 248),
+                -1,
+            )
+            cv2.putText(
+                canvas,
+                label,
+                (text_x, text_y),
+                font,
+                0.28,
+                error_color,
+                1,
+                cv2.LINE_AA,
+            )
+
+    footer_y = title_height + height + 27
+    cv2.putText(
+        canvas,
+        "Display IDs are visualization-only; CSV IDs remain center-five physical slots.",
+        (left_margin + 180, footer_y),
+        font,
+        0.42,
+        (60, 60, 60),
+        1,
+        cv2.LINE_AA,
+    )
+    encoded_ok, encoded = cv2.imencode(".png", canvas)
+    if not encoded_ok:
+        raise RuntimeError("Could not encode all-measurements overlay PNG")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    encoded.tofile(output_path)
+
+
 def write_summary(
     output_path: Path,
     image_id: str,
@@ -785,6 +1137,7 @@ def main() -> None:
             f"duplicate_factor={comparison.recovery.duplicate_factor}; "
             f"runtime_ms={comparison.runtime_ms:.3f}; "
             f"overlay={comparison.overlay_path}; "
+            f"all_measurements_overlay={comparison.all_measurements_overlay_path}; "
             f"summary={comparison.summary_path}"
         )
     print(f"prediction_csv={prediction_path}")
