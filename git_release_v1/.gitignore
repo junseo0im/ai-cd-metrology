@@ -1,0 +1,30 @@
+# datasets
+data/
+*.jpg
+*.jpeg
+*.png
+
+# only the four report figures are public PNGs
+!figures/
+!figures/*.png
+
+# model weights
+*.pt
+*.pth
+
+# training runs / generated outputs
+runs/
+outputs/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+

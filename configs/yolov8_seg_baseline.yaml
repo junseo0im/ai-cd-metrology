@@ -1,0 +1,21 @@
+# Recovered from B01 train_v2/args.yaml and training_console.log.
+# Paths below are repository-relative. Override the dataset with --data.
+# Local pretrained weights: no implicit model download or B01 fine-tuning.
+model: data/derived/yolo_quick_baseline_v1/pretrained/yolov8n-seg.pt
+task: segment
+pretrained: true
+imgsz: 640
+epochs: 30
+batch: 4
+workers: 0
+seed: 42
+device: cpu
+deterministic: true
+cache: false
+
+# Other train/augmentation settings retain the installed Ultralytics defaults.
+# Pin this environment when comparing runs; differences are reported, not hidden.
+baseline_environment:
+  python: '3.11.9'
+  ultralytics: '8.4.174'
+  torch: '2.14.1+cpu'

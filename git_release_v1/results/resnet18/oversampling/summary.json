@@ -1,0 +1,425 @@
+{
+  "status": "COMPLETED",
+  "training_success": true,
+  "model": "resnet18",
+  "config": {
+    "model": "resnet18",
+    "weights_enum": "ResNet18_Weights.IMAGENET1K_V1",
+    "pretrained": true,
+    "pretrained_sha256": "f37072fd47e89c5e827621c5baffa7500819f7896bbacec160b1a16c560e07ec",
+    "class_order": [
+      "p",
+      "o",
+      "s",
+      "sc"
+    ],
+    "class_to_idx": {
+      "p": 0,
+      "o": 1,
+      "s": 2,
+      "sc": 3
+    },
+    "seed": 42,
+    "input_size": [
+      224,
+      224
+    ],
+    "batch_size": 32,
+    "max_epochs": 50,
+    "early_stopping_patience": 10,
+    "best_metric": "val_macro_f1",
+    "best_mode": "maximize",
+    "best_tie_policy": "keep earliest; strict improvement only",
+    "macro_policy": "All fixed4 labels [p,o,s,sc], including support0 classes with zero_division=0; Val open contributes0. No supported-class-only macro.",
+    "optimizer": "AdamW",
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001,
+    "optimizer_betas": [
+      0.9,
+      0.999
+    ],
+    "optimizer_eps": 1e-8,
+    "amsgrad": false,
+    "loss": "CrossEntropyLoss",
+    "class_weight": null,
+    "label_smoothing": 0,
+    "learning_rate_scheduler": null,
+    "freeze_backbone": false,
+    "num_workers": 0,
+    "device": "cpu",
+    "torch_num_threads": 6,
+    "torch_num_interop_threads": 6,
+    "deterministic_algorithms": true,
+    "deterministic_warn_only": false,
+    "cudnn_benchmark": false,
+    "cudnn_deterministic": true,
+    "preprocessing": "RGB -> deterministic bilinear antialiased Resize((224,224)) -> ToTensor -> ImageNet Normalize; direct square resize, no random crop or center crop.",
+    "normalization_mean": [
+      0.485,
+      0.456,
+      0.406
+    ],
+    "normalization_std": [
+      0.229,
+      0.224,
+      0.225
+    ],
+    "train_shuffle": true,
+    "train_sampler": "RandomSampler without replacement",
+    "evaluation_sampler": "SequentialSampler",
+    "drop_last": false,
+    "augmentation": false,
+    "oversampling": true,
+    "undersampling": false,
+    "weighted_sampler": false,
+    "synthetic": false,
+    "sample_duplication": true,
+    "mixed_precision": false,
+    "architecture_dropout": "torchvision ResNet18 has no Dropout layer",
+    "train_metric_policy": "Online training-mode predictions during the ordinary optimization pass, not an extra train eval pass.",
+    "test_policy": "Best model selected using Val only; exactly one final Test inference pass.",
+    "environment": {
+      "python": "3.11.9",
+      "torch": "2.14.1+cpu",
+      "torchvision": "0.29.1+cpu",
+      "numpy": "2.4.6",
+      "platform": "Windows-10-10.0.26200-SP0",
+      "cuda_available": false
+    },
+    "requested_weights_enum": "ResNet18_Weights.DEFAULT",
+    "script_sha256": "f0b50e92de3b5074520740dfc11f5377e10b6fbf425bcab8a29751cfcc3e4c4f",
+    "helper_sha256": "aee736f8cece7bf1da4625b085d1fe896a47ce48d8e13b8d537de81756f10a74",
+    "training_helper_sha256": "573ab606e9b7cfb82e564183593980cd46ee39909f9fe0d76a7049485b94fbc3",
+    "oversampling_implementation": "Saved explicit manifest indices; ordinary RandomSampler without replacement over the expanded Train dataset."
+  },
+  "script_sha256": "f0b50e92de3b5074520740dfc11f5377e10b6fbf425bcab8a29751cfcc3e4c4f",
+  "resnet_baseline_helper_sha256": "573ab606e9b7cfb82e564183593980cd46ee39909f9fe0d76a7049485b94fbc3",
+  "data_helper_sha256": "aee736f8cece7bf1da4625b085d1fe896a47ce48d8e13b8d537de81756f10a74",
+  "original_unique_train": 4758,
+  "effective_train": 5195,
+  "repeat_factors": {
+    "p": 1,
+    "o": 10,
+    "s": 5,
+    "sc": 2
+  },
+  "effective_train_class_counts": {
+    "p": 4352,
+    "o": 20,
+    "s": 25,
+    "sc": 798
+  },
+  "sample_counts": {
+    "train": 5195,
+    "val": 597,
+    "test": 598
+  },
+  "unique_sample_counts": {
+    "train": 4758,
+    "val": 597,
+    "test": 598
+  },
+  "class_support": {
+    "train": {
+      "p": 4352,
+      "o": 20,
+      "s": 25,
+      "sc": 798
+    },
+    "val": {
+      "p": 546,
+      "o": 0,
+      "s": 1,
+      "sc": 50
+    },
+    "test": {
+      "p": 546,
+      "o": 1,
+      "s": 1,
+      "sc": 50
+    }
+  },
+  "actual_epochs": 16,
+  "best_epoch": 6,
+  "best_val_macro_f1": 0.7017096094636202,
+  "best_val": {
+    "accuracy": 0.964824120603015,
+    "macro_precision": 0.676056338028169,
+    "macro_recall": 0.7403846153846154,
+    "macro_f1": 0.7017096094636202,
+    "weighted_f1": 0.967531711384666,
+    "per_class": {
+      "p": {
+        "support": 546,
+        "predicted_count": 525,
+        "precision": 1,
+        "recall": 0.9615384615384616,
+        "f1": 0.9803921568627451
+      },
+      "o": {
+        "support": 0,
+        "predicted_count": 0,
+        "precision": 0,
+        "recall": 0,
+        "f1": 0
+      },
+      "s": {
+        "support": 1,
+        "predicted_count": 1,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "sc": {
+        "support": 50,
+        "predicted_count": 71,
+        "precision": 0.704225352112676,
+        "recall": 1,
+        "f1": 0.8264462809917354
+      }
+    },
+    "confusion_matrix": [
+      [
+        525,
+        0,
+        0,
+        21
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        1,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        50
+      ]
+    ],
+    "samples": 597,
+    "loss": 0.13124652828403455
+  },
+  "test": {
+    "accuracy": 0.9414715719063546,
+    "macro_precision": 0.4024764183373209,
+    "macro_recall": 0.4530952380952381,
+    "macro_f1": 0.42298354570159846,
+    "weighted_f1": 0.945388431939274,
+    "per_class": {
+      "p": {
+        "support": 546,
+        "predicted_count": 527,
+        "precision": 0.9867172675521821,
+        "recall": 0.9523809523809523,
+        "f1": 0.9692451071761417
+      },
+      "o": {
+        "support": 1,
+        "predicted_count": 1,
+        "precision": 0,
+        "recall": 0,
+        "f1": 0
+      },
+      "s": {
+        "support": 1,
+        "predicted_count": 1,
+        "precision": 0,
+        "recall": 0,
+        "f1": 0
+      },
+      "sc": {
+        "support": 50,
+        "predicted_count": 69,
+        "precision": 0.6231884057971014,
+        "recall": 0.86,
+        "f1": 0.7226890756302521
+      }
+    },
+    "confusion_matrix": [
+      [
+        520,
+        0,
+        0,
+        26
+      ],
+      [
+        0,
+        0,
+        1,
+        0
+      ],
+      [
+        0,
+        1,
+        0,
+        0
+      ],
+      [
+        7,
+        0,
+        0,
+        43
+      ]
+    ],
+    "samples": 598,
+    "loss": 0.15764236066453033
+  },
+  "resnet18_baseline_comparison": {
+    "overall": {
+      "accuracy": {
+        "baseline": 0.9648829431438127,
+        "oversampling": 0.9414715719063546,
+        "delta": -0.02341137123745818
+      },
+      "macro_precision": {
+        "baseline": 0.4504212454212454,
+        "oversampling": 0.4024764183373209,
+        "delta": -0.0479448270839245
+      },
+      "macro_recall": {
+        "baseline": 0.4504212454212454,
+        "oversampling": 0.4530952380952381,
+        "delta": 0.002673992673992709
+      },
+      "macro_f1": {
+        "baseline": 0.4504212454212454,
+        "oversampling": 0.42298354570159846,
+        "delta": -0.027437699719646935
+      },
+      "weighted_f1": {
+        "baseline": 0.9648829431438127,
+        "oversampling": 0.945388431939274,
+        "delta": -0.01949451120453871
+      }
+    },
+    "per_class": {
+      "p": {
+        "precision": {
+          "baseline": 0.9816849816849816,
+          "oversampling": 0.9867172675521821,
+          "delta": 0.005032285867200503
+        },
+        "recall": {
+          "baseline": 0.9816849816849816,
+          "oversampling": 0.9523809523809523,
+          "delta": -0.02930402930402931
+        },
+        "f1": {
+          "baseline": 0.9816849816849816,
+          "oversampling": 0.9692451071761417,
+          "delta": -0.012439874508839988
+        }
+      },
+      "o": {
+        "precision": {
+          "baseline": 0,
+          "oversampling": 0,
+          "delta": 0
+        },
+        "recall": {
+          "baseline": 0,
+          "oversampling": 0,
+          "delta": 0
+        },
+        "f1": {
+          "baseline": 0,
+          "oversampling": 0,
+          "delta": 0
+        }
+      },
+      "s": {
+        "precision": {
+          "baseline": 0,
+          "oversampling": 0,
+          "delta": 0
+        },
+        "recall": {
+          "baseline": 0,
+          "oversampling": 0,
+          "delta": 0
+        },
+        "f1": {
+          "baseline": 0,
+          "oversampling": 0,
+          "delta": 0
+        }
+      },
+      "sc": {
+        "precision": {
+          "baseline": 0.82,
+          "oversampling": 0.6231884057971014,
+          "delta": -0.1968115942028985
+        },
+        "recall": {
+          "baseline": 0.82,
+          "oversampling": 0.86,
+          "delta": 0.040000000000000036
+        },
+        "f1": {
+          "baseline": 0.82,
+          "oversampling": 0.7226890756302521,
+          "delta": -0.09731092436974786
+        }
+      }
+    },
+    "confusion_matrix_delta": [
+      [
+        -16,
+        0,
+        -1,
+        17
+      ],
+      [
+        -1,
+        0,
+        1,
+        0
+      ],
+      [
+        -1,
+        1,
+        0,
+        0
+      ],
+      [
+        -1,
+        0,
+        -1,
+        2
+      ]
+    ],
+    "sc_to_p": {
+      "baseline": 8,
+      "oversampling": 7,
+      "delta": -1
+    },
+    "p_to_sc": {
+      "baseline": 9,
+      "oversampling": 26,
+      "delta": 17
+    },
+    "p_prediction_ratio": {
+      "baseline": 0.9130434782608695,
+      "oversampling": 0.8812709030100334,
+      "delta": -0.0317725752508361
+    },
+    "predicted_o_count": {
+      "baseline": 0,
+      "oversampling": 1
+    },
+    "predicted_s_count": {
+      "baseline": 2,
+      "oversampling": 1
+    }
+  },
+  "release_note": "Extracted from the saved completed-run summary: metrics and relevant settings are preserved; local paths, raw file inventories and runtime logs are omitted. This is a report, not a resumable run-state file."
+}
+

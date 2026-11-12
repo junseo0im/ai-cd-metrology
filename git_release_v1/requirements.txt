@@ -1,0 +1,11 @@
+# Recorded environment: Python 3.11.9. No packages were installed for this release.
+# CPU wheels match the saved experiment environment.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.14.1+cpu
+torchvision==0.29.1+cpu
+ultralytics==8.4.174
+numpy==2.4.6
+Pillow==12.3.0
+matplotlib==3.11.2
+PyYAML==6.0.3
+

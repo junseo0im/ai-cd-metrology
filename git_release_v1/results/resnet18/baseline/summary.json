@@ -1,0 +1,390 @@
+{
+  "status": "COMPLETED",
+  "training_success": true,
+  "model": "resnet18",
+  "config": {
+    "model": "resnet18",
+    "weights_enum": "ResNet18_Weights.IMAGENET1K_V1",
+    "pretrained": true,
+    "pretrained_sha256": "f37072fd47e89c5e827621c5baffa7500819f7896bbacec160b1a16c560e07ec",
+    "class_order": [
+      "p",
+      "o",
+      "s",
+      "sc"
+    ],
+    "class_to_idx": {
+      "p": 0,
+      "o": 1,
+      "s": 2,
+      "sc": 3
+    },
+    "seed": 42,
+    "input_size": [
+      224,
+      224
+    ],
+    "batch_size": 32,
+    "max_epochs": 50,
+    "early_stopping_patience": 10,
+    "best_metric": "val_macro_f1",
+    "best_mode": "maximize",
+    "best_tie_policy": "keep earliest; strict improvement only",
+    "macro_policy": "All fixed4 labels [p,o,s,sc], including support0 classes with zero_division=0; Val open contributes0. No supported-class-only macro.",
+    "optimizer": "AdamW",
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001,
+    "optimizer_betas": [
+      0.9,
+      0.999
+    ],
+    "optimizer_eps": 1e-8,
+    "amsgrad": false,
+    "loss": "CrossEntropyLoss",
+    "class_weight": null,
+    "label_smoothing": 0,
+    "learning_rate_scheduler": null,
+    "freeze_backbone": false,
+    "num_workers": 0,
+    "device": "cpu",
+    "torch_num_threads": 6,
+    "torch_num_interop_threads": 6,
+    "deterministic_algorithms": true,
+    "deterministic_warn_only": false,
+    "cudnn_benchmark": false,
+    "cudnn_deterministic": true,
+    "preprocessing": "RGB -> deterministic bilinear antialiased Resize((224,224)) -> ToTensor -> ImageNet Normalize; direct square resize, no random crop or center crop.",
+    "normalization_mean": [
+      0.485,
+      0.456,
+      0.406
+    ],
+    "normalization_std": [
+      0.229,
+      0.224,
+      0.225
+    ],
+    "train_shuffle": true,
+    "train_sampler": "RandomSampler without replacement",
+    "evaluation_sampler": "SequentialSampler",
+    "drop_last": false,
+    "augmentation": false,
+    "oversampling": false,
+    "undersampling": false,
+    "weighted_sampler": false,
+    "synthetic": false,
+    "sample_duplication": false,
+    "mixed_precision": false,
+    "architecture_dropout": "torchvision ResNet18 has no Dropout layer",
+    "train_metric_policy": "Online training-mode predictions during the ordinary optimization pass, not an extra train eval pass.",
+    "test_policy": "Best model selected using Val only; exactly one final Test inference pass.",
+    "environment": {
+      "python": "3.11.9",
+      "torch": "2.14.1+cpu",
+      "torchvision": "0.29.1+cpu",
+      "numpy": "2.4.6",
+      "platform": "Windows-10-10.0.26200-SP0",
+      "cuda_available": false
+    },
+    "requested_weights_enum": "ResNet18_Weights.DEFAULT",
+    "script_sha256": "573ab606e9b7cfb82e564183593980cd46ee39909f9fe0d76a7049485b94fbc3",
+    "helper_sha256": "aee736f8cece7bf1da4625b085d1fe896a47ce48d8e13b8d537de81756f10a74"
+  },
+  "script_sha256": "573ab606e9b7cfb82e564183593980cd46ee39909f9fe0d76a7049485b94fbc3",
+  "helper_sha256": "aee736f8cece7bf1da4625b085d1fe896a47ce48d8e13b8d537de81756f10a74",
+  "sample_counts": {
+    "train": 4758,
+    "val": 597,
+    "test": 598
+  },
+  "class_support": {
+    "train": {
+      "p": 4352,
+      "o": 2,
+      "s": 5,
+      "sc": 399
+    },
+    "val": {
+      "p": 546,
+      "o": 0,
+      "s": 1,
+      "sc": 50
+    },
+    "test": {
+      "p": 546,
+      "o": 1,
+      "s": 1,
+      "sc": 50
+    }
+  },
+  "actual_epochs": 32,
+  "best_epoch": 22,
+  "best_val_macro_f1": 0.5492453730630994,
+  "best_val": {
+    "accuracy": 0.9765494137353434,
+    "macro_precision": 0.5113365071586096,
+    "macro_recall": 0.7208791208791209,
+    "macro_f1": 0.5492453730630994,
+    "weighted_f1": 0.9790404855120858,
+    "per_class": {
+      "p": {
+        "support": 546,
+        "predicted_count": 539,
+        "precision": 0.9962894248608535,
+        "recall": 0.9835164835164835,
+        "f1": 0.9898617511520738
+      },
+      "o": {
+        "support": 0,
+        "predicted_count": 0,
+        "precision": 0,
+        "recall": 0,
+        "f1": 0
+      },
+      "s": {
+        "support": 1,
+        "predicted_count": 5,
+        "precision": 0.2,
+        "recall": 1,
+        "f1": 0.33333333333333337
+      },
+      "sc": {
+        "support": 50,
+        "predicted_count": 53,
+        "precision": 0.8490566037735849,
+        "recall": 0.9,
+        "f1": 0.8737864077669903
+      }
+    },
+    "confusion_matrix": [
+      [
+        537,
+        0,
+        1,
+        8
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        1,
+        0
+      ],
+      [
+        2,
+        0,
+        3,
+        45
+      ]
+    ],
+    "samples": 597,
+    "loss": 0.07246659659910042
+  },
+  "test": {
+    "accuracy": 0.9648829431438127,
+    "macro_precision": 0.4504212454212454,
+    "macro_recall": 0.4504212454212454,
+    "macro_f1": 0.4504212454212454,
+    "weighted_f1": 0.9648829431438127,
+    "per_class": {
+      "p": {
+        "support": 546,
+        "predicted_count": 546,
+        "precision": 0.9816849816849816,
+        "recall": 0.9816849816849816,
+        "f1": 0.9816849816849816
+      },
+      "o": {
+        "support": 1,
+        "predicted_count": 0,
+        "precision": 0,
+        "recall": 0,
+        "f1": 0
+      },
+      "s": {
+        "support": 1,
+        "predicted_count": 2,
+        "precision": 0,
+        "recall": 0,
+        "f1": 0
+      },
+      "sc": {
+        "support": 50,
+        "predicted_count": 50,
+        "precision": 0.82,
+        "recall": 0.82,
+        "f1": 0.82
+      }
+    },
+    "confusion_matrix": [
+      [
+        536,
+        0,
+        1,
+        9
+      ],
+      [
+        1,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        0,
+        0,
+        0
+      ],
+      [
+        8,
+        0,
+        1,
+        41
+      ]
+    ],
+    "samples": 598,
+    "loss": 0.1615287242675306
+  },
+  "mobilenet_baseline_comparison": {
+    "overall": {
+      "accuracy": {
+        "mobilenet": 0.9749163879598662,
+        "resnet18": 0.9648829431438127,
+        "delta": -0.010033444816053505
+      },
+      "macro_precision": {
+        "mobilenet": 0.48732856290995824,
+        "resnet18": 0.4504212454212454,
+        "delta": -0.03690731748871284
+      },
+      "macro_recall": {
+        "mobilenet": 0.43954212454212455,
+        "resnet18": 0.4504212454212454,
+        "delta": 0.010879120879120852
+      },
+      "macro_f1": {
+        "mobilenet": 0.46008948090904467,
+        "resnet18": 0.4504212454212454,
+        "delta": -0.00966823548779927
+      },
+      "weighted_f1": {
+        "mobilenet": 0.972048268407359,
+        "resnet18": 0.9648829431438127,
+        "delta": -0.007165325263546296
+      }
+    },
+    "per_class": {
+      "p": {
+        "precision": {
+          "mobilenet": 0.9749552772808586,
+          "resnet18": 0.9816849816849816,
+          "delta": 0.006729704404123016
+        },
+        "recall": {
+          "mobilenet": 0.9981684981684982,
+          "resnet18": 0.9816849816849816,
+          "delta": -0.016483516483516536
+        },
+        "f1": {
+          "mobilenet": 0.9864253393665158,
+          "resnet18": 0.9816849816849816,
+          "delta": -0.004740357681534135
+        }
+      },
+      "o": {
+        "precision": {
+          "mobilenet": 0,
+          "resnet18": 0,
+          "delta": 0
+        },
+        "recall": {
+          "mobilenet": 0,
+          "resnet18": 0,
+          "delta": 0
+        },
+        "f1": {
+          "mobilenet": 0,
+          "resnet18": 0,
+          "delta": 0
+        }
+      },
+      "s": {
+        "precision": {
+          "mobilenet": 0,
+          "resnet18": 0,
+          "delta": 0
+        },
+        "recall": {
+          "mobilenet": 0,
+          "resnet18": 0,
+          "delta": 0
+        },
+        "f1": {
+          "mobilenet": 0,
+          "resnet18": 0,
+          "delta": 0
+        }
+      },
+      "sc": {
+        "precision": {
+          "mobilenet": 0.9743589743589743,
+          "resnet18": 0.82,
+          "delta": -0.1543589743589744
+        },
+        "recall": {
+          "mobilenet": 0.76,
+          "resnet18": 0.82,
+          "delta": 0.05999999999999994
+        },
+        "f1": {
+          "mobilenet": 0.853932584269663,
+          "resnet18": 0.82,
+          "delta": -0.03393258426966306
+        }
+      }
+    },
+    "sc_to_p": {
+      "mobilenet": 12,
+      "resnet18": 8,
+      "delta": -4
+    },
+    "p_prediction_ratio": {
+      "mobilenet": 0.9347826086956522,
+      "resnet18": 0.9130434782608695,
+      "delta": -0.021739130434782705
+    },
+    "confusion_matrix_delta": [
+      [
+        -9,
+        0,
+        1,
+        8
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        -4,
+        0,
+        1,
+        3
+      ]
+    ]
+  },
+  "release_note": "Extracted from the saved completed-run summary: metrics and relevant settings are preserved; local paths, raw file inventories and runtime logs are omitted. This is a report, not a resumable run-state file."
+}
+

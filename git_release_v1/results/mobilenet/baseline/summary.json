@@ -1,0 +1,251 @@
+{
+  "status": "COMPLETED",
+  "training_success": true,
+  "model": "mobilenet_v3_small",
+  "config": {
+    "model": "mobilenet_v3_small",
+    "weights_enum": "MobileNet_V3_Small_Weights.IMAGENET1K_V1",
+    "pretrained": true,
+    "pretrained_sha256": "047dcff4addef86ea5bc2eff13c9614dc11f47ab1160d0a71a25e7db994f4e1f",
+    "class_order": [
+      "p",
+      "o",
+      "s",
+      "sc"
+    ],
+    "class_to_idx": {
+      "p": 0,
+      "o": 1,
+      "s": 2,
+      "sc": 3
+    },
+    "seed": 42,
+    "input_size": [
+      224,
+      224
+    ],
+    "batch_size": 32,
+    "max_epochs": 50,
+    "early_stopping_patience": 10,
+    "best_metric": "val_macro_f1",
+    "best_mode": "maximize",
+    "best_tie_policy": "keep earliest; strict improvement only",
+    "macro_policy": "All fixed4 labels [p,o,s,sc], including support0 classes with zero_division=0; Val open contributes0. No supported-class-only macro.",
+    "optimizer": "AdamW",
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001,
+    "optimizer_betas": [
+      0.9,
+      0.999
+    ],
+    "optimizer_eps": 1e-8,
+    "amsgrad": false,
+    "loss": "CrossEntropyLoss",
+    "class_weight": null,
+    "label_smoothing": 0,
+    "learning_rate_scheduler": null,
+    "freeze_backbone": false,
+    "num_workers": 0,
+    "device": "cpu",
+    "torch_num_threads": 6,
+    "torch_num_interop_threads": 6,
+    "deterministic_algorithms": true,
+    "deterministic_warn_only": false,
+    "cudnn_benchmark": false,
+    "cudnn_deterministic": true,
+    "preprocessing": "RGB -> deterministic bilinear antialiased Resize((224,224)) -> ToTensor -> ImageNet Normalize; direct square resize, no random crop or center crop.",
+    "normalization_mean": [
+      0.485,
+      0.456,
+      0.406
+    ],
+    "normalization_std": [
+      0.229,
+      0.224,
+      0.225
+    ],
+    "train_shuffle": true,
+    "train_sampler": "RandomSampler without replacement",
+    "evaluation_sampler": "SequentialSampler",
+    "drop_last": false,
+    "augmentation": false,
+    "oversampling": false,
+    "undersampling": false,
+    "weighted_sampler": false,
+    "synthetic": false,
+    "sample_duplication": false,
+    "mixed_precision": false,
+    "architecture_dropout": "torchvision MobileNetV3-Small default0.2; seed-controlled model dropout, not image augmentation",
+    "train_metric_policy": "Online training-mode predictions during the ordinary optimization pass, not an extra train eval pass.",
+    "test_policy": "Best model selected using Val only; exactly one final Test inference pass.",
+    "environment": {
+      "python": "3.11.9",
+      "torch": "2.14.1+cpu",
+      "torchvision": "0.29.1+cpu",
+      "numpy": "2.4.6",
+      "platform": "Windows-10-10.0.26200-SP0",
+      "cuda_available": false
+    }
+  },
+  "sample_counts": {
+    "train": 4758,
+    "val": 597,
+    "test": 598
+  },
+  "class_support": {
+    "train": {
+      "p": 4352,
+      "o": 2,
+      "s": 5,
+      "sc": 399
+    },
+    "val": {
+      "p": 546,
+      "o": 0,
+      "s": 1,
+      "sc": 50
+    },
+    "test": {
+      "p": 546,
+      "o": 1,
+      "s": 1,
+      "sc": 50
+    }
+  },
+  "actual_epochs": 13,
+  "best_epoch": 3,
+  "best_val_macro_f1": 0.48625013600261124,
+  "script_sha256": "aee736f8cece7bf1da4625b085d1fe896a47ce48d8e13b8d537de81756f10a74",
+  "best_val": {
+    "accuracy": 0.9899497487437185,
+    "macro_precision": 0.48392049127343245,
+    "macro_recall": 0.4886263736263736,
+    "macro_f1": 0.48625013600261124,
+    "weighted_f1": 0.9891536892382705,
+    "per_class": {
+      "p": {
+        "support": 546,
+        "predicted_count": 546,
+        "precision": 0.9945054945054945,
+        "recall": 0.9945054945054945,
+        "f1": 0.9945054945054945
+      },
+      "o": {
+        "support": 0,
+        "predicted_count": 0,
+        "precision": 0,
+        "recall": 0,
+        "f1": 0
+      },
+      "s": {
+        "support": 1,
+        "predicted_count": 0,
+        "precision": 0,
+        "recall": 0,
+        "f1": 0
+      },
+      "sc": {
+        "support": 50,
+        "predicted_count": 51,
+        "precision": 0.9411764705882353,
+        "recall": 0.96,
+        "f1": 0.9504950495049505
+      }
+    },
+    "confusion_matrix": [
+      [
+        543,
+        0,
+        0,
+        3
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        0,
+        0,
+        0
+      ],
+      [
+        2,
+        0,
+        0,
+        48
+      ]
+    ],
+    "samples": 597,
+    "loss": 0.02676775548644161
+  },
+  "test": {
+    "accuracy": 0.9749163879598662,
+    "macro_precision": 0.48732856290995824,
+    "macro_recall": 0.43954212454212455,
+    "macro_f1": 0.46008948090904467,
+    "weighted_f1": 0.972048268407359,
+    "per_class": {
+      "p": {
+        "support": 546,
+        "predicted_count": 559,
+        "precision": 0.9749552772808586,
+        "recall": 0.9981684981684982,
+        "f1": 0.9864253393665158
+      },
+      "o": {
+        "support": 1,
+        "predicted_count": 0,
+        "precision": 0,
+        "recall": 0,
+        "f1": 0
+      },
+      "s": {
+        "support": 1,
+        "predicted_count": 0,
+        "precision": 0,
+        "recall": 0,
+        "f1": 0
+      },
+      "sc": {
+        "support": 50,
+        "predicted_count": 39,
+        "precision": 0.9743589743589743,
+        "recall": 0.76,
+        "f1": 0.853932584269663
+      }
+    },
+    "confusion_matrix": [
+      [
+        545,
+        0,
+        0,
+        1
+      ],
+      [
+        1,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        0,
+        0,
+        0
+      ],
+      [
+        12,
+        0,
+        0,
+        38
+      ]
+    ],
+    "samples": 598,
+    "loss": 0.17812974628125336
+  },
+  "release_note": "Extracted from the saved completed-run summary: metrics and relevant settings are preserved; local paths, raw file inventories and runtime logs are omitted. This is a report, not a resumable run-state file."
+}
+

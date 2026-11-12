@@ -25,3 +25,21 @@ artifacts/
 reports/
 
 *.egg-info/
+
+# Incoming datasets and archives
+data/incoming/
+
+# Training outputs and checkpoints
+runs/
+
+# Local backup inventory
+project_file_manifest.csv
+
+# Security scan reports
+gitleaks-report.json
+
+# Model checkpoints
+*.pt
+*.pth
+*.ckpt
+*.onnx
