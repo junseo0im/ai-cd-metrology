@@ -1,0 +1,3 @@
+# Shared tracking only. Training frameworks remain in each member's existing environment.
+mlflow==3.18.0
+dagshub==0.7.3
