@@ -1,0 +1,48 @@
+{
+  "description": "UI examples only. Progress is a fixed fixture, not a formula or actual processing result. History labels are illustrative, not real acquisition times.",
+  "recent_image_ids": [
+    "IMG-DEMO-REP-1",
+    "IMG-DEMO-REP-2",
+    "IMG-DEMO-REP-3",
+    "IMG-DEMO-LGT-1",
+    "IMG-DEMO-LGT-2",
+    "IMG-DEMO-LGT-3"
+  ],
+  "history": [
+    {
+      "label": "예시 시점 1",
+      "image_count": 24
+    },
+    {
+      "label": "예시 시점 2",
+      "image_count": 48
+    },
+    {
+      "label": "예시 시점 3",
+      "image_count": 72
+    }
+  ],
+  "progress": {
+    "overall_percent": 60,
+    "review_pending": 2,
+    "error_count": 1,
+    "stages": [
+      {
+        "stage": "Metadata",
+        "state": "완료 예시"
+      },
+      {
+        "stage": "Calibration",
+        "state": "진행 예시"
+      },
+      {
+        "stage": "계측·AI",
+        "state": "대기 예시"
+      },
+      {
+        "stage": "DB 저장",
+        "state": "미연결"
+      }
+    ]
+  }
+}

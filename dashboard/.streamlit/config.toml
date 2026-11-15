@@ -1,0 +1,39 @@
+[browser]
+gatherUsageStats = false
+
+[server]
+headless = true
+address = "127.0.0.1"
+
+[theme]
+base = "light"
+font = "sans-serif"
+baseFontSize = 15
+baseRadius = "0.7rem"
+buttonRadius = "0.6rem"
+
+[theme.light]
+primaryColor = "#2864e8"
+backgroundColor = "#f3f6fb"
+secondaryBackgroundColor = "#ffffff"
+textColor = "#172b46"
+borderColor = "#dce4ef"
+dataframeBorderColor = "#dce4ef"
+dataframeHeaderBackgroundColor = "#eaf0f8"
+
+[theme.light.sidebar]
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f0f4fa"
+
+[theme.dark]
+primaryColor = "#8ab4ff"
+backgroundColor = "#151d2c"
+secondaryBackgroundColor = "#202c40"
+textColor = "#e7eef8"
+borderColor = "#3b4c65"
+dataframeBorderColor = "#3b4c65"
+dataframeHeaderBackgroundColor = "#293950"
+
+[theme.dark.sidebar]
+backgroundColor = "#1b2739"
+secondaryBackgroundColor = "#26374f"

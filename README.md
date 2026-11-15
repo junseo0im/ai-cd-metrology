@@ -43,3 +43,19 @@ AI 기반 검사 시스템입니다.
 
 세부 계획은 [로드맵](docs/roadmap.md)에 정리되어 있습니다.
 CD 측정 방법과 평가 기준은 [CD 측정 문서](docs/cd_measurement.md)에 정리되어 있습니다.
+
+## Streamlit Dashboard / SQLite 개발 코드
+
+현재 feature 브랜치의 대시보드 실행 방법은 [Dashboard README](dashboard/README.md),
+SQLite 스키마·초기화·명시적 v2 Migration 절차는 [Database README](database/README.md)에 있습니다.
+대시보드는 기본 Mock UI와 SQLite 이미지 등록·조회 기능을 구분하며, 실제 계측·YOLO·Calibration은 미연결입니다.
+
+PowerShell에서 대시보드 전용 가상환경을 준비한 후:
+
+    Set-Location dashboard
+    .\.venv\Scripts\python.exe -m streamlit run app.py --server.port 8502
+
+운영 DB, 등록 이미지, 연구 데이터, 가중치 및 실행 결과는 GitHub에 포함하지 않습니다.
+팀원이 받는 것은 소스·테스트·Schema·Migration·Mock UI 자산입니다. 운영 DB Migration은 별도 승인 후에만 실행합니다.
+환경 설치는 dashboard/requirements.txt를 기준으로 하며, 루트 environment-packages.txt는 기존 연구 환경의 참고 스냅샷입니다.
+과거 분석 소스(R02)는 이번 체크포인트에서 복원하지 않았습니다.

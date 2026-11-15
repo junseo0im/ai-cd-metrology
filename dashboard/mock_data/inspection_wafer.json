@@ -1,0 +1,586 @@
+{
+  "description": "UI-only provisional criticality fixture. Each Die's lt/c/rb regions share one existing Mock image; no filename parsing, position-specific acquisition, threshold or judgement.",
+  "position_order": [
+    "lt",
+    "c",
+    "rb"
+  ],
+  "dies": [
+    {
+      "die_id": "11",
+      "row": 1,
+      "col": 1,
+      "image_ids": {
+        "BATCH-DEMO-060": "IMG-DEMO-1-01",
+        "BATCH-DEMO-070": "IMG-DEMO-2-01",
+        "BATCH-DEMO-080": "IMG-DEMO-3-01"
+      },
+      "regions": [
+        {
+          "position": "lt",
+          "criticality": "NORMAL"
+        },
+        {
+          "position": "c",
+          "criticality": "MINOR"
+        },
+        {
+          "position": "rb",
+          "criticality": "WARNING"
+        }
+      ]
+    },
+    {
+      "die_id": "12",
+      "row": 1,
+      "col": 2,
+      "image_ids": {
+        "BATCH-DEMO-060": "IMG-DEMO-1-02",
+        "BATCH-DEMO-070": "IMG-DEMO-2-02",
+        "BATCH-DEMO-080": "IMG-DEMO-3-02"
+      },
+      "regions": [
+        {
+          "position": "lt",
+          "criticality": "CRITICAL"
+        },
+        {
+          "position": "c",
+          "criticality": "UNUSABLE"
+        },
+        {
+          "position": "rb",
+          "criticality": "NOT_EVALUATED"
+        }
+      ]
+    },
+    {
+      "die_id": "13",
+      "row": 1,
+      "col": 3,
+      "image_ids": {
+        "BATCH-DEMO-060": "IMG-DEMO-1-03",
+        "BATCH-DEMO-070": "IMG-DEMO-2-03",
+        "BATCH-DEMO-080": "IMG-DEMO-3-03"
+      },
+      "regions": [
+        {
+          "position": "lt",
+          "criticality": "NORMAL"
+        },
+        {
+          "position": "c",
+          "criticality": "MINOR"
+        },
+        {
+          "position": "rb",
+          "criticality": "WARNING"
+        }
+      ]
+    },
+    {
+      "die_id": "14",
+      "row": 1,
+      "col": 4,
+      "image_ids": {
+        "BATCH-DEMO-060": "IMG-DEMO-1-04",
+        "BATCH-DEMO-070": "IMG-DEMO-2-04",
+        "BATCH-DEMO-080": "IMG-DEMO-3-04"
+      },
+      "regions": [
+        {
+          "position": "lt",
+          "criticality": "CRITICAL"
+        },
+        {
+          "position": "c",
+          "criticality": "UNUSABLE"
+        },
+        {
+          "position": "rb",
+          "criticality": "NOT_EVALUATED"
+        }
+      ]
+    },
+    {
+      "die_id": "15",
+      "row": 1,
+      "col": 5,
+      "image_ids": {
+        "BATCH-DEMO-060": "IMG-DEMO-1-05",
+        "BATCH-DEMO-070": "IMG-DEMO-2-05",
+        "BATCH-DEMO-080": "IMG-DEMO-3-05"
+      },
+      "regions": [
+        {
+          "position": "lt",
+          "criticality": "NORMAL"
+        },
+        {
+          "position": "c",
+          "criticality": "MINOR"
+        },
+        {
+          "position": "rb",
+          "criticality": "WARNING"
+        }
+      ]
+    },
+    {
+      "die_id": "16",
+      "row": 1,
+      "col": 6,
+      "image_ids": {
+        "BATCH-DEMO-060": "IMG-DEMO-1-06",
+        "BATCH-DEMO-070": "IMG-DEMO-2-06",
+        "BATCH-DEMO-080": "IMG-DEMO-3-06"
+      },
+      "regions": [
+        {
+          "position": "lt",
+          "criticality": "CRITICAL"
+        },
+        {
+          "position": "c",
+          "criticality": "UNUSABLE"
+        },
+        {
+          "position": "rb",
+          "criticality": "NOT_EVALUATED"
+        }
+      ]
+    },
+    {
+      "die_id": "17",
+      "row": 1,
+      "col": 7,
+      "image_ids": {
+        "BATCH-DEMO-060": "IMG-DEMO-1-07",
+        "BATCH-DEMO-070": "IMG-DEMO-2-07",
+        "BATCH-DEMO-080": "IMG-DEMO-3-07"
+      },
+      "regions": [
+        {
+          "position": "lt",
+          "criticality": "NORMAL"
+        },
+        {
+          "position": "c",
+          "criticality": "MINOR"
+        },
+        {
+          "position": "rb",
+          "criticality": "WARNING"
+        }
+      ]
+    },
+    {
+      "die_id": "18",
+      "row": 1,
+      "col": 8,
+      "image_ids": {
+        "BATCH-DEMO-060": "IMG-DEMO-1-08",
+        "BATCH-DEMO-070": "IMG-DEMO-2-08",
+        "BATCH-DEMO-080": "IMG-DEMO-3-08"
+      },
+      "regions": [
+        {
+          "position": "lt",
+          "criticality": "CRITICAL"
+        },
+        {
+          "position": "c",
+          "criticality": "UNUSABLE"
+        },
+        {
+          "position": "rb",
+          "criticality": "NOT_EVALUATED"
+        }
+      ]
+    },
+    {
+      "die_id": "21",
+      "row": 2,
+      "col": 1,
+      "image_ids": {
+        "BATCH-DEMO-060": "IMG-DEMO-1-09",
+        "BATCH-DEMO-070": "IMG-DEMO-2-09",
+        "BATCH-DEMO-080": "IMG-DEMO-3-09"
+      },
+      "regions": [
+        {
+          "position": "lt",
+          "criticality": "NORMAL"
+        },
+        {
+          "position": "c",
+          "criticality": "MINOR"
+        },
+        {
+          "position": "rb",
+          "criticality": "WARNING"
+        }
+      ]
+    },
+    {
+      "die_id": "22",
+      "row": 2,
+      "col": 2,
+      "image_ids": {
+        "BATCH-DEMO-060": "IMG-DEMO-1-10",
+        "BATCH-DEMO-070": "IMG-DEMO-2-10",
+        "BATCH-DEMO-080": "IMG-DEMO-3-10"
+      },
+      "regions": [
+        {
+          "position": "lt",
+          "criticality": "CRITICAL"
+        },
+        {
+          "position": "c",
+          "criticality": "UNUSABLE"
+        },
+        {
+          "position": "rb",
+          "criticality": "NOT_EVALUATED"
+        }
+      ]
+    },
+    {
+      "die_id": "23",
+      "row": 2,
+      "col": 3,
+      "image_ids": {
+        "BATCH-DEMO-060": "IMG-DEMO-1-11",
+        "BATCH-DEMO-070": "IMG-DEMO-2-11",
+        "BATCH-DEMO-080": "IMG-DEMO-3-11"
+      },
+      "regions": [
+        {
+          "position": "lt",
+          "criticality": "NORMAL"
+        },
+        {
+          "position": "c",
+          "criticality": "MINOR"
+        },
+        {
+          "position": "rb",
+          "criticality": "WARNING"
+        }
+      ]
+    },
+    {
+      "die_id": "24",
+      "row": 2,
+      "col": 4,
+      "image_ids": {
+        "BATCH-DEMO-060": "IMG-DEMO-1-12",
+        "BATCH-DEMO-070": "IMG-DEMO-2-12",
+        "BATCH-DEMO-080": "IMG-DEMO-3-12"
+      },
+      "regions": [
+        {
+          "position": "lt",
+          "criticality": "CRITICAL"
+        },
+        {
+          "position": "c",
+          "criticality": "UNUSABLE"
+        },
+        {
+          "position": "rb",
+          "criticality": "NOT_EVALUATED"
+        }
+      ]
+    },
+    {
+      "die_id": "25",
+      "row": 2,
+      "col": 5,
+      "image_ids": {
+        "BATCH-DEMO-060": "IMG-DEMO-1-13",
+        "BATCH-DEMO-070": "IMG-DEMO-2-13",
+        "BATCH-DEMO-080": "IMG-DEMO-3-13"
+      },
+      "regions": [
+        {
+          "position": "lt",
+          "criticality": "NORMAL"
+        },
+        {
+          "position": "c",
+          "criticality": "MINOR"
+        },
+        {
+          "position": "rb",
+          "criticality": "WARNING"
+        }
+      ]
+    },
+    {
+      "die_id": "26",
+      "row": 2,
+      "col": 6,
+      "image_ids": {
+        "BATCH-DEMO-060": "IMG-DEMO-1-14",
+        "BATCH-DEMO-070": "IMG-DEMO-2-14",
+        "BATCH-DEMO-080": "IMG-DEMO-3-14"
+      },
+      "regions": [
+        {
+          "position": "lt",
+          "criticality": "CRITICAL"
+        },
+        {
+          "position": "c",
+          "criticality": "UNUSABLE"
+        },
+        {
+          "position": "rb",
+          "criticality": "NOT_EVALUATED"
+        }
+      ]
+    },
+    {
+      "die_id": "27",
+      "row": 2,
+      "col": 7,
+      "image_ids": {
+        "BATCH-DEMO-060": "IMG-DEMO-1-15",
+        "BATCH-DEMO-070": "IMG-DEMO-2-15",
+        "BATCH-DEMO-080": "IMG-DEMO-3-15"
+      },
+      "regions": [
+        {
+          "position": "lt",
+          "criticality": "NORMAL"
+        },
+        {
+          "position": "c",
+          "criticality": "MINOR"
+        },
+        {
+          "position": "rb",
+          "criticality": "WARNING"
+        }
+      ]
+    },
+    {
+      "die_id": "28",
+      "row": 2,
+      "col": 8,
+      "image_ids": {
+        "BATCH-DEMO-060": "IMG-DEMO-1-16",
+        "BATCH-DEMO-070": "IMG-DEMO-2-16",
+        "BATCH-DEMO-080": "IMG-DEMO-3-16"
+      },
+      "regions": [
+        {
+          "position": "lt",
+          "criticality": "CRITICAL"
+        },
+        {
+          "position": "c",
+          "criticality": "UNUSABLE"
+        },
+        {
+          "position": "rb",
+          "criticality": "NOT_EVALUATED"
+        }
+      ]
+    },
+    {
+      "die_id": "31",
+      "row": 3,
+      "col": 1,
+      "image_ids": {
+        "BATCH-DEMO-060": "IMG-DEMO-1-17",
+        "BATCH-DEMO-070": "IMG-DEMO-2-17",
+        "BATCH-DEMO-080": "IMG-DEMO-3-17"
+      },
+      "regions": [
+        {
+          "position": "lt",
+          "criticality": "NORMAL"
+        },
+        {
+          "position": "c",
+          "criticality": "MINOR"
+        },
+        {
+          "position": "rb",
+          "criticality": "WARNING"
+        }
+      ]
+    },
+    {
+      "die_id": "32",
+      "row": 3,
+      "col": 2,
+      "image_ids": {
+        "BATCH-DEMO-060": "IMG-DEMO-1-18",
+        "BATCH-DEMO-070": "IMG-DEMO-2-18",
+        "BATCH-DEMO-080": "IMG-DEMO-3-18"
+      },
+      "regions": [
+        {
+          "position": "lt",
+          "criticality": "CRITICAL"
+        },
+        {
+          "position": "c",
+          "criticality": "UNUSABLE"
+        },
+        {
+          "position": "rb",
+          "criticality": "NOT_EVALUATED"
+        }
+      ]
+    },
+    {
+      "die_id": "33",
+      "row": 3,
+      "col": 3,
+      "image_ids": {
+        "BATCH-DEMO-060": "IMG-DEMO-1-19",
+        "BATCH-DEMO-070": "IMG-DEMO-2-19",
+        "BATCH-DEMO-080": "IMG-DEMO-3-19"
+      },
+      "regions": [
+        {
+          "position": "lt",
+          "criticality": "NORMAL"
+        },
+        {
+          "position": "c",
+          "criticality": "MINOR"
+        },
+        {
+          "position": "rb",
+          "criticality": "WARNING"
+        }
+      ]
+    },
+    {
+      "die_id": "34",
+      "row": 3,
+      "col": 4,
+      "image_ids": {
+        "BATCH-DEMO-060": "IMG-DEMO-1-20",
+        "BATCH-DEMO-070": "IMG-DEMO-2-20",
+        "BATCH-DEMO-080": "IMG-DEMO-3-20"
+      },
+      "regions": [
+        {
+          "position": "lt",
+          "criticality": "CRITICAL"
+        },
+        {
+          "position": "c",
+          "criticality": "UNUSABLE"
+        },
+        {
+          "position": "rb",
+          "criticality": "NOT_EVALUATED"
+        }
+      ]
+    },
+    {
+      "die_id": "35",
+      "row": 3,
+      "col": 5,
+      "image_ids": {
+        "BATCH-DEMO-060": "IMG-DEMO-1-21",
+        "BATCH-DEMO-070": "IMG-DEMO-2-21",
+        "BATCH-DEMO-080": "IMG-DEMO-3-21"
+      },
+      "regions": [
+        {
+          "position": "lt",
+          "criticality": "NORMAL"
+        },
+        {
+          "position": "c",
+          "criticality": "MINOR"
+        },
+        {
+          "position": "rb",
+          "criticality": "WARNING"
+        }
+      ]
+    },
+    {
+      "die_id": "36",
+      "row": 3,
+      "col": 6,
+      "image_ids": {
+        "BATCH-DEMO-060": "IMG-DEMO-1-22",
+        "BATCH-DEMO-070": "IMG-DEMO-2-22",
+        "BATCH-DEMO-080": "IMG-DEMO-3-22"
+      },
+      "regions": [
+        {
+          "position": "lt",
+          "criticality": "CRITICAL"
+        },
+        {
+          "position": "c",
+          "criticality": "UNUSABLE"
+        },
+        {
+          "position": "rb",
+          "criticality": "NOT_EVALUATED"
+        }
+      ]
+    },
+    {
+      "die_id": "37",
+      "row": 3,
+      "col": 7,
+      "image_ids": {
+        "BATCH-DEMO-060": "IMG-DEMO-1-23",
+        "BATCH-DEMO-070": "IMG-DEMO-2-23",
+        "BATCH-DEMO-080": "IMG-DEMO-3-23"
+      },
+      "regions": [
+        {
+          "position": "lt",
+          "criticality": "NORMAL"
+        },
+        {
+          "position": "c",
+          "criticality": "MINOR"
+        },
+        {
+          "position": "rb",
+          "criticality": "WARNING"
+        }
+      ]
+    },
+    {
+      "die_id": "38",
+      "row": 3,
+      "col": 8,
+      "image_ids": {
+        "BATCH-DEMO-060": "IMG-DEMO-1-24",
+        "BATCH-DEMO-070": "IMG-DEMO-2-24",
+        "BATCH-DEMO-080": "IMG-DEMO-3-24"
+      },
+      "regions": [
+        {
+          "position": "lt",
+          "criticality": "CRITICAL"
+        },
+        {
+          "position": "c",
+          "criticality": "UNUSABLE"
+        },
+        {
+          "position": "rb",
+          "criticality": "NOT_EVALUATED"
+        }
+      ]
+    }
+  ]
+}

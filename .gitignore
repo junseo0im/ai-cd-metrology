@@ -23,3 +23,34 @@ data/derived/
 outputs/
 artifacts/
 reports/
+runtime_data/
+
+# Local datasets, training outputs and transfer packages
+data/incoming/
+runs/
+transfer/
+# SQLite databases, journals and sidecars (runtime_data/ is already excluded)
+*.sqlite
+*.sqlite3
+*.db
+*.sqlite-*
+*.sqlite3-*
+*.db-*
+# Model weights and exported checkpoints
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.safetensors
+# Local Python packaging, test and UI validation artifacts
+*.egg-info/
+.pytest_cache/
+.pip-cache/
+.tmp/
+.validation/
+# Local-only QA screenshots; Markdown reports remain shareable
+docs/qa/screenshots/
+# Local application credentials
+**/.streamlit/secrets.toml
+*.pem
+*.key

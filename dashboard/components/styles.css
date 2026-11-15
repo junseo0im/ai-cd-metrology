@@ -1,0 +1,118 @@
+/* Native toolbar remains visible. Main content begins below its 60px height. */
+.stApp {
+ --ida-bg:light-dark(#f3f6fb,#151d2c);
+ --ida-card:light-dark(#ffffff,#202c40);
+ --ida-soft:light-dark(#edf3fc,#293950);
+ --ida-text:light-dark(#172b46,#e7eef8);
+ --ida-muted:light-dark(#526780,#b7c8df);
+ --ida-border:light-dark(#dce4ef,#3b4c65);
+ --ida-accent:light-dark(#2864e8,#8ab4ff);
+ --ida-on-accent:light-dark(#ffffff,#132640);
+ background:var(--ida-bg); color:var(--ida-text);
+}
+.stAppHeader { background:var(--ida-bg); border-bottom:1px solid var(--ida-border); }
+.stMain .block-container { max-width:none; padding:3.8rem 1.5rem 1.2rem; }
+[data-testid="stSidebar"] { background:var(--ida-card); border-right:1px solid var(--ida-border); }
+[data-testid="stSidebarUserContent"] { padding-top:1.2rem; }
+h1,h2,h3,h4 { color:var(--ida-text); letter-spacing:-.02em; }
+h1 { font-size:1.6rem!important; padding-top:0!important; }
+h3 { font-size:1.05rem!important; }
+p { line-height:1.5; }
+[data-testid="stCaptionContainer"] { color:var(--ida-muted); font-size:.82rem; opacity:1; }
+[data-testid="stCaptionContainer"] p { color:var(--ida-muted); }
+[class*="st-key-card_"] { background:var(--ida-card); border-color:var(--ida-border)!important; border-radius:14px!important; }
+[class*="st-key-card_"] [data-testid="stVerticalBlock"] { gap:.55rem; }
+.st-key-platform_header { border-bottom:1px solid var(--ida-border); padding-bottom:.5rem; }
+.st-key-platform_header [data-testid="stHorizontalBlock"] { align-items:center; }
+.st-key-platform_header [data-testid="stCaptionContainer"] { font-size:.8rem; }
+.brand-row { display:flex; align-items:center; gap:12px; min-height:42px; }
+.ida-mark { display:inline-flex; align-items:center; justify-content:center; width:42px; height:42px;
+ border-radius:11px; background:var(--ida-accent); color:var(--ida-on-accent); font-size:16px; font-weight:800; }
+.ida-brand { font-weight:760; font-size:18px; white-space:nowrap; }
+.ida-separator { color:var(--ida-border); font-size:24px; font-weight:300; }
+.ida-page { color:var(--ida-muted); font-size:14px; }
+.header-context { display:flex; align-items:center; gap:12px; color:var(--ida-muted); font-size:12px; }
+.badge { display:inline-block; border:1px solid var(--ida-border); background:var(--ida-soft);
+ color:var(--ida-text); border-radius:999px; padding:3px 9px; font-size:12px; }
+.eyebrow { font-size:11px; letter-spacing:.12em; font-weight:750; color:var(--ida-muted); }
+.st-key-page_heading { padding:0; }
+.st-key-page_heading [data-testid="stVerticalBlock"] { gap:.12rem; }
+.st-key-page_heading h1 { margin:0!important; padding-bottom:.1rem!important; }
+.nav-current { background:var(--ida-soft); border-left:3px solid var(--ida-accent); border-radius:8px;
+ padding:10px 12px; color:var(--ida-text); font-size:13px; margin:8px 0; }
+.nav-current small { color:var(--ida-muted); font-size:12px; }
+[data-testid="stPageLink"] a { border-radius:8px; padding:.42rem .65rem; }
+[data-testid="stPageLink"] a:hover { background:var(--ida-soft); }
+[data-testid="stMetric"] { background:var(--ida-card); border:1px solid var(--ida-border); border-radius:12px; padding:.7rem 1rem; }
+[data-testid="stMetricValue"] { font-size:1.5rem; }
+.hero { padding:16px 0 10px; } .hero h1 { font-size:2.1rem!important; line-height:1.28; margin:8px 0; }
+.hero p { color:var(--ida-muted); max-width:720px; }
+.placeholder { border:1px dashed var(--ida-border); border-radius:11px; background:var(--ida-soft);
+ color:var(--ida-muted); padding:22px; min-height:105px; }
+.placeholder b { color:var(--ida-text); font-size:14px; } .placeholder p { margin:.5rem 0 0; font-size:13px; }
+.pipeline { display:flex; align-items:stretch; gap:7px; margin:8px 0 14px; }
+.pipeline-step { flex:1; min-width:0; padding:12px 7px; border:1px solid var(--ida-border);
+ background:var(--ida-soft); border-radius:9px; text-align:center; position:relative; }
+.pipeline-step b { font-size:13px; } .pipeline-step small { font-size:12px; display:block; color:var(--ida-muted); margin-top:5px; }
+.pipeline-arrow { align-self:center; color:var(--ida-muted); font-size:17px; }
+.image-tiles { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; }
+.status-tile { border:1px solid var(--ida-border); background:var(--ida-soft); border-radius:9px; padding:9px; }
+.status-tile .mini-image { height:36px; border-radius:4px; background:repeating-linear-gradient(90deg,#c3a96d 0 9px,#80673e 10px 12px,#edd393 13px 22px); margin-bottom:7px; }
+.status-tile b { font-size:12px; color:var(--ida-text); } .status-tile small { display:block; font-size:12px; color:var(--ida-muted); margin-top:4px; }
+.state-dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; }
+.batch-table-wrap { overflow:auto; max-height:228px; border:1px solid var(--ida-border); border-radius:9px; }
+.batch-table { width:100%; border-collapse:collapse; font-size:14px; color:var(--ida-text); }
+.batch-table th { position:sticky; top:0; background:var(--ida-soft); text-align:left; font-weight:650; }
+.batch-table th,.batch-table td { padding:6px 10px; border-bottom:1px solid var(--ida-border); white-space:nowrap; }
+.batch-table tbody tr:hover { background:var(--ida-soft); }
+.batch-table a { color:var(--ida-accent); font-weight:650; text-decoration:underline; text-underline-offset:3px; }
+.batch-table a:focus-visible { outline:2px solid var(--ida-accent); outline-offset:4px; }
+/* Batch rows grow with wrapped text; never squeeze two captions into a fixed row. */
+.st-key-batch_table { border:1px solid var(--ida-border); border-radius:9px; padding:6px 10px; }
+.st-key-batch_table [data-testid="stHorizontalBlock"] { border-bottom:1px solid var(--ida-border); padding:5px 0; align-items:center; }
+.st-key-batch_table p { font-size:12px; line-height:1.5; margin:0; overflow-wrap:anywhere; }
+.st-key-batch_table [data-testid="stButton"] button { padding:4px 0; border:0; color:var(--ida-accent); text-decoration:underline; }
+[data-testid="stBaseButton-primary"], [data-testid="stBaseButton-primary"] p { color:var(--ida-on-accent); }
+[data-testid="stBaseButton-primaryFormSubmit"], [data-testid="stBaseButton-primaryFormSubmit"] p { color:var(--ida-on-accent); }
+.image-identity { color:var(--ida-muted); font-size:12px; }
+.st-key-card_ia_results [data-testid="stMetric"] { padding:.4rem; }
+.st-key-card_ia_results img { height:200px; object-fit:contain; }
+.st-key-ia_detail button { min-height:30px; padding:2px 10px; }
+@media (max-width:1400px) {
+ .brand-row { flex-wrap:wrap; gap:7px; } .ida-brand { font-size:16px; }
+ .ida-page { font-size:13px; } .ida-separator { display:none; }
+ .stMain .block-container { padding-left:1rem; padding-right:1rem; }
+}
+@media (max-width:800px) {
+ .stMain .block-container { padding-top:4.2rem; }
+ .image-tiles { grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .pipeline { flex-wrap:wrap; } .pipeline-step { min-width:90px; }
+ .hero h1 { font-size:1.8rem!important; }
+}
+
+/* Data Control only: Streamlit 1.64 React Aria controls (not legacy BaseWeb). */
+.st-key-card_data_input [data-testid="stTextInputRootElement"],
+.st-key-card_data_input [data-testid="stSelectbox"] [role="group"],
+.st-key-card_data_input [data-testid="stNumberInputContainer"],
+.st-key-card_data_input textarea {
+ border:1px solid light-dark(#7589a3,#95aac8)!important;
+ background:var(--ida-card)!important;
+ color:var(--ida-text)!important;
+ border-radius:7px;
+}
+.st-key-card_data_input input { color:var(--ida-text); background:transparent; }
+.st-key-card_data_input input::placeholder,
+.st-key-card_data_input textarea::placeholder { color:var(--ida-muted)!important; opacity:1; }
+.st-key-card_data_input [data-testid="stTextInputRootElement"]:focus-within,
+.st-key-card_data_input [data-testid="stSelectbox"] [role="group"]:focus-within,
+.st-key-card_data_input [data-testid="stNumberInputContainer"]:focus-within {
+ outline:2px solid var(--ida-accent); outline-offset:1px;
+}
+/* Explicit disabled colors avoid white text on transparent Light backgrounds. */
+.st-key-card_data_input [data-testid="stBaseButton-primary"]:disabled {
+ background:light-dark(#e6edf5,#34465d)!important;
+ color:light-dark(#526780,#c6d5e8)!important;
+ border:1px solid light-dark(#7589a3,#95aac8)!important;
+ opacity:1!important;
+}
+.st-key-card_data_input [data-testid="stBaseButton-primary"]:disabled p { color:inherit!important; }

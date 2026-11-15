@@ -1,0 +1,35 @@
+[
+  {
+    "mock_image_id": "REVIEW-DEMO-01",
+    "filename": "w1_39_c.png",
+    "review_reason": "Die 코드 범위 확인 필요 (Mock)",
+    "metadata": {
+      "wafer_id": "W1",
+      "die_code": null,
+      "position_code": "c",
+      "legacy_defect_code": null
+    }
+  },
+  {
+    "mock_image_id": "REVIEW-DEMO-02",
+    "filename": "w2_12_xx.png",
+    "review_reason": "촬영 위치 확인 필요 (Mock)",
+    "metadata": {
+      "wafer_id": "W2",
+      "die_code": "12",
+      "position_code": null,
+      "legacy_defect_code": null
+    }
+  },
+  {
+    "mock_image_id": "REVIEW-DEMO-03",
+    "filename": "wafer_unknown_12_rb_pn.png",
+    "review_reason": "Wafer ID 확인 필요 (Mock)",
+    "metadata": {
+      "wafer_id": null,
+      "die_code": "12",
+      "position_code": "rb",
+      "legacy_defect_code": "pn"
+    }
+  }
+]
