@@ -9,22 +9,22 @@
 |---|---|---|
 | `method` | 측정 방법 이름 | `unet` |
 | `image_id` | 확장자를 제외한 원본 파일명 | `sample_01` |
-| `measurement_type` | `line`, `gap`, `sidewall` 중 하나 | `sidewall` |
-| `y_fraction` | native 높이 기준 측정 위치 | `0.35` |
-| `target_id` | 중앙 5개 대상의 왼쪽부터 번호 | `S3` |
-| `width_px` | native 픽셀 폭 | `5.42` |
-| `width_um` | `width_px × 0.1592` | `0.862864` |
+| `measurement_type` | `line` 또는 `gap` | `line` |
+| `y_fraction` | native 높이 기준 측정 위치 | `0.45` |
+| `target_id` | 중앙 5개 대상의 왼쪽부터 번호 | `L3` |
+| `width_px` | native 픽셀 폭 | `55.84` |
+| `width_um` | `width_px × 0.1592` | `8.8897` |
 | `center_x_px` | 측정 대상 중심의 native X | `575.2` |
-| `left_x_px` | 왼쪽 edge의 native X | `572.5` |
-| `right_x_px` | 오른쪽 edge의 native X | `577.9` |
+| `left_x_px` | 왼쪽 경계(빨간 띠 안쪽 끝)의 native X | `547.3` |
+| `right_x_px` | 오른쪽 경계의 native X | `603.1` |
 | `runtime_ms` | 사진 한 장 전체 처리시간 | `842.1` |
 | `status` | 정상 측정은 `ok`, 실패는 `error` | `ok` |
 | `message` | 실패 이유 또는 참고사항 | 빈칸 가능 |
 
-한 사진에서 sidewall만 평가하면 다음과 같이 25행이 생성된다.
+한 사진에서 다음과 같이 30행이 생성된다.
 
 ```text
-Y 위치 5개 × 중앙 sidewall 5개 = 25행
+Y 위치 3개 × (중앙 line 5개 + 중앙 gap 5개) = 30행
 ```
 
 `runtime_ms`는 한 사진의 모든 행에 같은 값을 반복해도 된다. 비교 프로그램이
@@ -33,12 +33,16 @@ Y 위치 5개 × 중앙 sidewall 5개 = 25행
 
 ## 사람 정답 CSV
 
+사람은 숫자를 입력하지 않는다. 가이드 그림(`make_manual_y_guide.py`)의 측정 줄 위에
+빨간 띠 양쪽 경계마다 초록 표시선을 긋고 캡처하면 `extract_line_gap_ground_truth.py`가
+아래 형식의 CSV를 만든다.
+
 | 열 | 의미 |
 |---|---|
 | `image_id` | 예측 CSV와 같은 파일 ID |
-| `measurement_type` | 이번 비교에서는 `sidewall` |
-| `y_fraction` | `0.20`, `0.35`, `0.50`, `0.65`, `0.80` |
-| `target_id` | `S1`~`S5` |
+| `measurement_type` | `line` 또는 `gap` |
+| `y_fraction` | `0.25`, `0.45`, `0.65` |
+| `target_id` | `L1`~`L5`, `G1`~`G5` |
 | `answer_width_px` | 사람이 정한 정답 폭. µm만 있으면 비워도 됨 |
 | `answer_width_um` | 사람이 정한 정답 폭. px만 있으면 비워도 됨 |
 | `left_x_px`, `right_x_px` | 선택 사항. 사람이 지정한 좌우 edge |

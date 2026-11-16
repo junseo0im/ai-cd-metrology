@@ -43,3 +43,9 @@ AI 기반 검사 시스템입니다.
 
 세부 계획은 [로드맵](docs/roadmap.md)에 정리되어 있습니다.
 CD 측정 방법과 평가 기준은 [CD 측정 문서](docs/cd_measurement.md)에 정리되어 있습니다.
+
+## 선폭 측정 코드
+
+선폭 측정 세 방법(UNet, canny, threshold), 공통 기준, 평가·대시보드 연동 코드는
+[`linewidth/`](linewidth/README.md) 폴더에 있습니다. 공통 측정 기준은
+[`linewidth/docs/COMMON_PROTOCOL.md`](linewidth/docs/COMMON_PROTOCOL.md)를 따릅니다.

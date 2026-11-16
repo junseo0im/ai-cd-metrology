@@ -1,0 +1,105 @@
+{
+  "request_example": {
+    "image_id": "L2-1",
+    "image_path": "<path>.png",
+    "wafer_id": "W1",
+    "die_id": "1",
+    "site_code": "c",
+    "batch_id": "B0",
+    "analysis_run_id": "test-001",
+    "roi": null,
+    "calibration": null
+  },
+  "success_example": {
+    "image_id": "L2-1",
+    "wafer_id": "W1",
+    "die_id": "1",
+    "site_code": "c",
+    "batch_id": "B0",
+    "analysis_run_id": "test-001",
+    "status": "success",
+    "algorithm_version": "unet-sidewall-v1;ckpt=best_unet_manual.pt@58a815efaf91;epoch=11;prob_threshold=0.50;edge=inner;y=0.25,0.45,0.65",
+    "calibration_id": "optiview-native-0.1592",
+    "measurements": [
+      {
+        "y_fraction": 0.25,
+        "y_px": 157,
+        "line_id": "L01",
+        "measurement_type": "line",
+        "width_px": 55.844,
+        "width_um": 8.8904,
+        "left_x_px": 42.685,
+        "right_x_px": 98.529,
+        "center_x_px": 70.607,
+        "left_sidewall_px": 6.147,
+        "right_sidewall_px": 6.974
+      },
+      {
+        "y_fraction": 0.25,
+        "y_px": 157,
+        "line_id": "G01",
+        "measurement_type": "gap",
+        "width_px": 55.992,
+        "width_um": 8.9139,
+        "left_x_px": 105.503,
+        "right_x_px": 161.495,
+        "center_x_px": 133.499,
+        "left_sidewall_px": 6.974,
+        "right_sidewall_px": 7.004
+      },
+      {
+        "y_fraction": 0.25,
+        "y_px": 157,
+        "line_id": "L02",
+        "measurement_type": "line",
+        "width_px": 55.989,
+        "width_um": 8.9134,
+        "left_x_px": 168.499,
+        "right_x_px": 224.488,
+        "center_x_px": 196.493,
+        "left_sidewall_px": 7.004,
+        "right_sidewall_px": 6.276
+      },
+      {
+        "y_fraction": 0.25,
+        "y_px": 157,
+        "line_id": "G02",
+        "measurement_type": "gap",
+        "width_px": 54.734,
+        "width_um": 8.7137,
+        "left_x_px": 230.764,
+        "right_x_px": 285.498,
+        "center_x_px": 258.131,
+        "left_sidewall_px": 6.276,
+        "right_sidewall_px": 7.008
+      }
+    ],
+    "error_code": null,
+    "error_message": null,
+    "pixel_scale": {
+      "coordinate_system": "native_px",
+      "factor_x": 2,
+      "factor_y": 2,
+      "offset_x": 1,
+      "offset_y": 1,
+      "native_width": 1134,
+      "native_height": 629
+    },
+    "image_path_note": "example from 노트북2/1.png; measurements truncated to 4 of 48"
+  },
+  "failure_example": {
+    "image_id": "missing",
+    "wafer_id": null,
+    "die_id": null,
+    "site_code": null,
+    "batch_id": null,
+    "analysis_run_id": null,
+    "status": "failed",
+    "algorithm_version": "unet-sidewall-v1;ckpt=best_unet_manual.pt@58a815efaf91;epoch=11;prob_threshold=0.50;edge=inner;y=0.25,0.45,0.65",
+    "calibration_id": "optiview-native-0.1592",
+    "measurements": [],
+    "error_code": "IMAGE_NOT_FOUND",
+    "error_message": "image not found: C:\\nope\\x.png",
+    "pixel_scale": null
+  }
+}

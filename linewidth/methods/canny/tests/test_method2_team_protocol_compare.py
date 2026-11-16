@@ -11,11 +11,42 @@ if str(SCRIPT_DIRECTORY) not in sys.path:
 
 from run_method2_team_protocol_compare import (
     MISSING_SLOT_MESSAGE,
+    _reference_fraction,
+    _typed_candidates,
     continuity_preserving_selection,
     recover_native_pixels,
     visualization_measurements,
     visualization_physical_intervals,
 )
+
+
+def test_sidewall_candidates_do_not_require_interval_parity() -> None:
+    sidewalls = [_candidate(10.0, 0), _candidate(20.0, 1)]
+    intervals = [{**_candidate(15.0, 0), "parity": 0}]
+
+    typed = _typed_candidates(
+        {"sidewall": sidewalls, "interval": intervals},
+        line_parity=None,
+    )
+
+    assert typed["sidewall"] == sidewalls
+    assert typed["line"] == []
+    assert typed["gap"] == []
+
+
+def test_sidewall_reference_prefers_most_complete_sidewall_row() -> None:
+    sparse = {"sidewall": [_candidate(10.0, 0)], "interval": []}
+    complete = {
+        "sidewall": [_candidate(float(x), index) for index, x in enumerate((10, 20, 30))],
+        "interval": [],
+    }
+    diagnostics = {"rejected_peak_count": 0, "line_parity": None}
+    scanlines = {
+        0.20: (20, sparse, diagnostics),
+        0.50: (50, complete, diagnostics),
+    }
+
+    assert _reference_fraction(scanlines, ["sidewall"]) == 0.50
 
 
 def test_recover_native_pixels_removes_declared_2x_repetition() -> None:
