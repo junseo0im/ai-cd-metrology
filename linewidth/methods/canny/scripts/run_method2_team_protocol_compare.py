@@ -14,7 +14,7 @@ from numpy.typing import NDArray
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-TEAM_PROTOCOL_DIRECTORY = PROJECT_ROOT / "team protocol"
+TEAM_PROTOCOL_DIRECTORY = PROJECT_ROOT.parents[1]  # linewidth/team_protocol.py
 for import_path in (PROJECT_ROOT / "src", TEAM_PROTOCOL_DIRECTORY):
     if str(import_path) not in sys.path:
         sys.path.insert(0, str(import_path))
@@ -222,10 +222,16 @@ def measurements_at_native_y(
         for parity in (0, 1)
         if any(interval["parity"] == parity for interval in intervals)
     }
-    if len(parity_brightness) != 2:
-        raise ValueError("Both alternating interval parities are required")
-    line_parity = max(parity_brightness, key=parity_brightness.get)
-    gap_parity = 1 - line_parity
+    # Line/gap labels require both alternating interval parities.  Sidewall
+    # widths do not: they are already defined by each paired Canny doublet.
+    # Preserve the sidewall candidates and report unavailable parity so a
+    # sidewall-only run is not rejected by an unrelated line/gap condition.
+    line_parity = (
+        max(parity_brightness, key=parity_brightness.get)
+        if len(parity_brightness) == 2
+        else None
+    )
+    gap_parity = None if line_parity is None else 1 - line_parity
     diagnostics = {
         "negative_peak_count": len(profile.negative_peak_indices),
         "positive_peak_count": len(profile.positive_peak_indices),
@@ -240,19 +246,19 @@ def measurements_at_native_y(
 
 def _typed_candidates(
     candidates: dict[str, list[dict[str, object]]],
-    line_parity: int,
+    line_parity: int | None,
 ) -> dict[str, list[dict[str, object]]]:
     intervals = candidates["interval"]
     return {
         "line": [
             {**interval, "measurement_type": "line"}
             for interval in intervals
-            if interval["parity"] == line_parity
+            if line_parity is not None and interval["parity"] == line_parity
         ],
         "gap": [
             {**interval, "measurement_type": "gap"}
             for interval in intervals
-            if interval["parity"] != line_parity
+            if line_parity is not None and interval["parity"] != line_parity
         ],
         "sidewall": candidates["sidewall"],
     }
@@ -418,13 +424,16 @@ def continuity_preserving_selection(
 
 def _reference_fraction(
     scanlines: dict[float, tuple[int, dict[str, list[dict[str, object]]], dict[str, object]]],
+    measurement_types: list[str],
 ) -> float:
     """Choose the most complete scanline, preferring fewer rejections and Y50."""
+
+    candidate_kind = "sidewall" if set(measurement_types) == {"sidewall"} else "interval"
 
     return min(
         scanlines,
         key=lambda fraction: (
-            -len(scanlines[fraction][1]["interval"]),
+            -len(scanlines[fraction][1][candidate_kind]),
             int(scanlines[fraction][2]["rejected_peak_count"]),
             abs(fraction - 0.5),
             fraction,
@@ -452,16 +461,29 @@ def compare_image(
         float,
         tuple[int, dict[str, list[dict[str, object]]], dict[str, object]],
     ] = {}
+    requires_interval_parity = any(
+        measurement_type in {"line", "gap"}
+        for measurement_type in measurement_types
+    )
     for y_fraction, native_y in measurement_rows(recovery.image.shape[0]):
         candidates, diagnostics = measurements_at_native_y(
             edge_diagnostics.grayscale_roi[native_y],
             edge_diagnostics.x_gradient[native_y],
         )
+        if requires_interval_parity and diagnostics["line_parity"] is None:
+            raise ValueError(
+                "Both alternating interval parities are required for line/gap measurement"
+            )
         scanlines[y_fraction] = (native_y, candidates, diagnostics)
 
-    reference_fraction = _reference_fraction(scanlines)
+    reference_fraction = _reference_fraction(scanlines, measurement_types)
     _, reference_raw, reference_diagnostics = scanlines[reference_fraction]
-    reference_line_parity = int(reference_diagnostics["line_parity"])
+    reference_line_parity_value = reference_diagnostics["line_parity"]
+    reference_line_parity = (
+        None
+        if reference_line_parity_value is None
+        else int(reference_line_parity_value)
+    )
     reference_candidates = _typed_candidates(
         reference_raw,
         reference_line_parity,
@@ -470,9 +492,10 @@ def compare_image(
 
     for y_fraction, (native_y, candidates, diagnostics) in scanlines.items():
         typed_candidates = _typed_candidates(candidates, reference_line_parity)
-        displayed_intervals = visualization_physical_intervals(
-            candidates,
-            reference_line_parity,
+        displayed_intervals = (
+            visualization_physical_intervals(candidates, reference_line_parity)
+            if reference_line_parity is not None
+            else {"line": [], "gap": [], "missing": []}
         )
         all_measurements_by_y[y_fraction] = {
             **displayed_intervals,
@@ -487,7 +510,10 @@ def compare_image(
                 reference_candidates[measurement_type],
                 measurement_type,
             )
-            for measurement_type in MEASUREMENT_ORDER
+            # Validate only the types requested by the user.  A sidewall-only
+            # benchmark must not fail merely because the same row has fewer
+            # than five valid line or gap intervals.
+            for measurement_type in measurement_types
         }
         measurements_by_y[y_fraction] = selected
         message = (
@@ -1092,7 +1118,7 @@ def discover_images(input_path: Path) -> list[Path]:
 def run(
     input_path: Path,
     *,
-    measurement_selection: str,
+    measurement_selection: str | None = None,
     duplicate_factor: int | None,
     output_root: Path,
 ) -> tuple[list[ImageComparison], Path]:
@@ -1128,7 +1154,6 @@ def run(
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("input_path", type=Path)
-    parser.add_argument("--measurement-types", default="123")
     parser.add_argument(
         "--duplicate-factor",
         type=int,
@@ -1144,7 +1169,6 @@ def main() -> None:
     args = parser.parse_args()
     comparisons, prediction_path = run(
         args.input_path,
-        measurement_selection=args.measurement_types,
         duplicate_factor=args.duplicate_factor,
         output_root=args.output_root,
     )

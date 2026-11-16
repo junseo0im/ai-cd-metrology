@@ -6,6 +6,7 @@ from html import escape
 import argparse
 import json
 import re
+import sys
 import time
 
 import cv2
@@ -15,24 +16,19 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-import team_protocol
+LINEWIDTH_ROOT = Path(__file__).resolve().parents[2]
+if str(LINEWIDTH_ROOT) not in sys.path:
+    sys.path.insert(0, str(LINEWIDTH_ROOT))
+import team_protocol  # noqa: E402
 
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
-TYPE_BY_DIGIT = {"1": "line", "2": "gap", "3": "sidewall"}
+MEASUREMENT_TYPES = ["line", "gap"]  # 측정 종류 선택 메뉴(1/2/3) 없음: 항상 line·gap
 PREFIX_BY_TYPE = {"line": "L", "gap": "G", "sidewall": "S"}
 COLOR_BY_TYPE = {"line": "lime", "gap": "cyan", "sidewall": "magenta"}
-Y_RATIOS = (0.20, 0.35, 0.50, 0.65, 0.80)
-UM_PER_NATIVE_PIXEL = 0.1592
-
-
-def parse_measurement_selection(text):
-    """Accept 1, 2, 3, 13, 123, '1 3', etc. and return canonical order."""
-    compact = re.sub(r"[\s,;+/_-]+", "", str(text))
-    if not compact or any(char not in TYPE_BY_DIGIT for char in compact):
-        raise ValueError("측정 종류는 1, 2, 3 조합으로 입력하세요. 예: 1, 13, 123")
-    selected = {TYPE_BY_DIGIT[char] for char in compact}
-    return [TYPE_BY_DIGIT[digit] for digit in "123" if TYPE_BY_DIGIT[digit] in selected]
+Y_RATIOS = team_protocol.Y_FRACTIONS
+UM_PER_NATIVE_PIXEL = team_protocol.UM_PER_NATIVE_PX
+SIDEWALL_THRESHOLD_FRACTION = 0.57
 
 
 def read_image(path):
@@ -130,7 +126,9 @@ def detect_sidewall_centers(green, min_distance=27, edge_margin_fraction=.03):
     return centers, reference
 
 
-def measure_dark_band(profile, expected_center, lo, hi, fraction=.70,
+def measure_dark_band(
+        profile, expected_center, lo, hi,
+        fraction=SIDEWALL_THRESHOLD_FRACTION,
                       background_fraction=.20, core_pixels=3):
     p = np.asarray(profile[lo:hi], dtype=float)
     if len(p) < 10:
@@ -303,6 +301,7 @@ def render_overlay(native, details, output_path, image_name):
 
 
 def process_image(path, measurement_types, output_dir):
+    measurement_started = time.perf_counter()
     path, output_dir = Path(path), Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     source = read_image(path)
@@ -322,6 +321,7 @@ def process_image(path, measurement_types, output_dir):
             green[y_px], measured_walls, targets, ratio, y_px))
     details = pd.DataFrame(records)
     summary = summarize_measurements(details)
+    measurement_runtime_ms = (time.perf_counter() - measurement_started) * 1000.0
     details.to_csv(output_dir/"measurements_by_y.csv", index=False, encoding="utf-8-sig")
     summary.to_csv(output_dir/"target_summary.csv", index=False, encoding="utf-8-sig")
     render_overlay(native, details, output_dir/"overlay.png", path.name)
@@ -329,6 +329,7 @@ def process_image(path, measurement_types, output_dir):
                     y_ratios=list(Y_RATIOS), y_positions_native=y_positions,
                     um_per_native_pixel=UM_PER_NATIVE_PIXEL,
                     detected_sidewalls=len(centers), targets=targets,
+                    measurement_runtime_ms=measurement_runtime_ms,
                     interval_classification=classification, **native_info)
     (output_dir/"metadata.json").write_text(
         json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -420,16 +421,15 @@ def run_batch(input_path, measurement_types, output_dir):
     timing_frame.to_csv(output/"processing_times.csv", index=False, encoding="utf-8-sig")
     (output/"timing_summary.json").write_text(
         json.dumps(timing_summary, ensure_ascii=False, indent=2), encoding="utf-8")
-    team_protocol.save_prediction_csv(prediction_frame, output/"predictions.csv")
+    team_protocol.save_summary_csv(prediction_frame, output/"predictions.csv")
     make_html_report(output, prediction_frame, timing_summary, errors)
     return prediction_frame, timing_frame, timing_summary, errors
 
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Native-pixel line/gap/sidewall measurement for one image or a folder.")
+        description="Native-pixel line/gap width measurement for one image or a folder.")
     parser.add_argument("input", nargs="?", type=Path, help="이미지 파일 또는 이미지 폴더")
-    parser.add_argument("--measure", help="1=line, 2=gap, 3=sidewall; 예: 1, 13, 123")
     parser.add_argument("--output", type=Path, help="결과 폴더")
     return parser.parse_args()
 
@@ -437,8 +437,7 @@ def parse_args():
 def main():
     args = parse_args()
     input_path = args.input or Path(input("이미지 한 장 또는 폴더 경로: ").strip().strip('"'))
-    selection = args.measure or input("측정 종류 선택 (1=line, 2=gap, 3=sidewall / 복수 가능): ")
-    measurement_types = parse_measurement_selection(selection)
+    measurement_types = list(MEASUREMENT_TYPES)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     base = input_path.parent if input_path.is_file() else input_path
     output = args.output or base/f"unified_measurement_results_{timestamp}"

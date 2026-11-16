@@ -1,7 +1,7 @@
 """Standalone protocol shared by every line-width measurement program.
 
 Give this one file to each teammate and import it from their own algorithm.
-It standardizes only the experiment interface: number keys, native Y rows,
+It standardizes only the experiment interface: measurement types, native Y rows,
 central target IDs, and prediction CSV output.  It does not contain U-Net or
 any other edge-detection algorithm.
 """
@@ -14,7 +14,7 @@ from pathlib import Path
 
 
 UM_PER_NATIVE_PX = 0.1592
-Y_FRACTIONS = (0.20, 0.35, 0.50, 0.65, 0.80)
+Y_FRACTIONS = (0.25, 0.45, 0.65)
 MEASUREMENT_ORDER = ("line", "gap", "sidewall")
 MEASUREMENT_DEFINITIONS = {
     "sidewall": (
@@ -30,14 +30,14 @@ MEASUREMENT_DEFINITIONS = {
         "distance between its two facing sidewall edges"
     ),
 }
+# Measurement types are chosen by name only (the old 1/2/3 number-key menu was
+# removed).  The dashboard Metrology module always measures line and gap.
 MEASUREMENT_KEY_MAP = {
-    "1": "line",
-    "2": "gap",
-    "3": "sidewall",
     "line": "line",
     "gap": "gap",
     "sidewall": "sidewall",
 }
+DEFAULT_MEASUREMENT_TYPES = ("line", "gap")
 TARGET_PREFIX = {"line": "L", "gap": "G", "sidewall": "S"}
 TARGETS_PER_ROW = 5
 PREDICTION_FIELDS = (
@@ -57,42 +57,29 @@ PREDICTION_FIELDS = (
 )
 
 
-def normalize_measurement_type(value: int | str) -> str:
+def normalize_measurement_type(value: str) -> str:
     key = str(value).strip().lower()
     try:
         return MEASUREMENT_KEY_MAP[key]
     except KeyError as error:
-        raise ValueError("use only 1=line, 2=gap, 3=sidewall") from error
+        raise ValueError("measurement type must be line, gap or sidewall") from error
 
 
-def parse_measurement_types(value) -> list[str]:
-    """Parse 3, '3', '1 3', '123', or a list; preserve 1/2/3 order."""
+def parse_measurement_types(value=None) -> list[str]:
+    """Parse 'line gap', 'line,gap' or a list of names; None means line and gap."""
+    if value is None:
+        return list(DEFAULT_MEASUREMENT_TYPES)
     if isinstance(value, (list, tuple, set)):
         tokens: list[str] = []
         for item in value:
             tokens.extend(parse_measurement_types(item))
     else:
-        text = str(value).strip().lower()
-        if text in {"all", "전체"}:
-            tokens = list(MEASUREMENT_ORDER)
-        elif re.fullmatch(r"[123]+", text):
-            tokens = [normalize_measurement_type(character) for character in text]
-        else:
-            raw = [token for token in re.split(r"[\s,;+]+", text) if token]
-            if not raw:
-                raise ValueError("select at least one of 1=line, 2=gap, 3=sidewall")
-            tokens = [normalize_measurement_type(token) for token in raw]
+        raw = [token for token in re.split(r"[\s,;+]+", str(value).strip().lower()) if token]
+        if not raw:
+            raise ValueError("select at least one of line, gap, sidewall")
+        tokens = [normalize_measurement_type(token) for token in raw]
     selected = set(tokens)
     return [kind for kind in MEASUREMENT_ORDER if kind in selected]
-
-
-def ask_measurement_types() -> list[str]:
-    while True:
-        value = input("측정 종류 [1=line, 2=gap, 3=sidewall]: ").strip()
-        try:
-            return parse_measurement_types(value)
-        except ValueError as error:
-            print(error)
 
 
 def measurement_rows(native_height: int) -> list[tuple[float, int]]:
@@ -197,3 +184,29 @@ if __name__ == "__main__":
     for kind in selected:
         print(f"{kind} 정의:", MEASUREMENT_DEFINITIONS[kind])
     print("native 높이 641의 Y:", measurement_rows(641))
+
+
+SUMMARY_FIELDS = (
+    "image_name", "measurement_type", "target_id", "mean_um", "std_um",
+    "valid_points", "status", "native_width", "native_height",
+    "duplicate_factor_x", "duplicate_factor_y", "processing_time_s",
+    "timing_included",
+)
+
+
+def save_summary_csv(summary, output_path: str | Path) -> Path:
+    """Save the per-target summary table (one row per target averaged over Y rows).
+
+    Used by the threshold program's folder report; the benchmark uses
+    save_prediction_csv instead.
+    """
+    import pandas as pd
+
+    frame = summary.copy() if isinstance(summary, pd.DataFrame) else pd.DataFrame(summary)
+    missing = [column for column in SUMMARY_FIELDS if column not in frame.columns]
+    if missing:
+        raise ValueError(f"summary columns missing: {missing}")
+    destination = Path(output_path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    frame.to_csv(destination, index=False, encoding="utf-8-sig")
+    return destination
