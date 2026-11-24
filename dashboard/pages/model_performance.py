@@ -1,7 +1,8 @@
-"""Model-performance records and the teammate's Roboflow (Gradio) experiment app, embedded by URL.
+"""Model-performance records and the teammate's RF-DETR defect inspection.
 
-The Gradio app runs as its own local process (dedicated env); it is never imported here, and its
-experiment results are not written to the operational DB.
+The inspection UI runs in this Streamlit process (dashboard/defect_inspection);
+the teammate's Gradio app is still shown by URL when it happens to be running.
+Neither writes its experiment results to the operational DB.
 """
 import os
 from pathlib import Path
@@ -10,6 +11,7 @@ import urllib.request
 import streamlit as st
 from dashboard.components.layout import page_title
 from dashboard.components.mlflow import render_mlflow_browser
+from dashboard.defect_inspection.ui import render_inspection
 
 SETTINGS = Path(__file__).resolve().parents[1] / "roboflow_gradio.toml"
 RUN_COMMAND = ('$env:MODEL_CACHE_DIR="runtime_data\\envs\\roboflow_cache"\n'
@@ -48,9 +50,10 @@ with roboflow_tab:
     else:
         with st.container(border=True):
             st.subheader("RF-DETR 결함 검출 시연")
-            st.info("연결 준비 중 · " + ("Gradio 실험 앱이 실행 중이 아닙니다 (" + url + ")" if url
-                                       else "Gradio 주소가 설정되지 않았습니다"))
-            st.markdown("**실행 방법** (프로젝트 폴더에서 PowerShell)")
+            render_inspection()
+        with st.expander("별도 Gradio 실험 앱으로 실행하기 (선택)"):
+            st.caption("연결 준비 중 · " + ("Gradio 실험 앱이 실행 중이 아닙니다 (" + url + ")" if url
+                                        else "Gradio 주소가 설정되지 않았습니다"))
             # Markdown code block, not st.code: the page's st.code elements stay the MLflow Run IDs.
             st.markdown("```powershell" + chr(10) + RUN_COMMAND + chr(10) + "```")
             st.caption("주소 설정: dashboard/roboflow_gradio.toml 의 url (또는 환경변수 IDA_ROBOFLOW_GRADIO_URL). "
