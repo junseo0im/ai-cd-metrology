@@ -39,10 +39,10 @@ class UnifiedDataControlTests(unittest.TestCase):
         sqlite_modes=list(at.radio(key="input_mode").options)
         self.assertFalse(at.get("progress"))  # Never reuse the Mock 60% for real data.
         self.assertTrue(at.button(key="sqlite_register").disabled)
-        at.radio(key="data_control_source").set_value("Mock").run()
+        at.session_state["data_control_selected_source"]="Mock";at.run()
         self.assertFalse(at.exception)
         mock_cards=self.cards(at)
-        self.assertEqual(set(mock_cards),{"card_data_input","card_data_pipeline","card_data_batches","card_data_progress"})
+        self.assertEqual(set(mock_cards),{"card_data_input","card_data_pipeline","card_data_batches","card_data_analysis"})
         self.assertEqual({key:value[:2] for key,value in sqlite_cards.items()},
                          {key:value[:2] for key,value in mock_cards.items()})
         self.assertEqual(sqlite_headers,[row.value for row in at.subheader])
@@ -50,7 +50,7 @@ class UnifiedDataControlTests(unittest.TestCase):
         self.assertEqual(sqlite_tabs,["이미지 등록","파일명 확인·수정"])
         self.assertEqual(sqlite_modes,list(at.radio(key="input_mode").options))
         self.assertEqual(sqlite_modes,["Wafer Batch","Repeatability","Lighting","Single Image"])
-        self.assertEqual(len(at.get("progress")),1)
+        self.assertEqual(len(at.get("progress")),0)
         self.assertTrue(any('class="pipeline"' in row.value for row in mock_cards["card_data_pipeline"][2].markdown))
         self.assertTrue(any('class="image-tiles"' in row.value for row in mock_cards["card_data_pipeline"][2].markdown))
         self.assertEqual(mock.catalog(),original)
@@ -62,20 +62,22 @@ class UnifiedDataControlTests(unittest.TestCase):
         at=self.app()
         cards=self.cards(at)
         overview=cards["card_data_pipeline"][2]
-        self.assertTrue(any("**전체 Batch** 7" in row.value and "**전체 Image** 7" in row.value
+        # TASK18-B-11: KPI tiles + input-mode chips (same SQLite values).
+        self.assertTrue(any("<small>Batch</small><b>7</b>" in row.value and "<small>등록 이미지</small><b>7</b>" in row.value
                             for row in overview.markdown))
-        self.assertTrue(any("Wafer Batch 7" in row.value for row in overview.caption))
-        self.assertTrue(any('class="pipeline"' in row.value for row in overview.markdown))
-        self.assertTrue(any('class="image-tiles"' in row.value for row in overview.markdown))
-        status=cards["card_data_progress"][2]
-        self.assertTrue(any("등록 완료 7장" in row.value for row in status.success))
-        table=status.dataframe[0].value
-        self.assertEqual(table["상태"].tolist(),["완료","미연결","미연결","미연결"])
+        self.assertTrue(any("Wafer Batch 7" in row.value and "합계 7 = 등록 이미지" in row.value for row in overview.markdown))
+        self.assertFalse(any('class="pipeline"' in row.value for row in overview.markdown))     # TASK18-B-11.1: removed.
+        self.assertFalse(any('class="image-tiles"' in row.value for row in overview.markdown))
+        analysis=cards["card_data_analysis"][2]
+        self.assertTrue(at.button(key="dcc_analysis_run").disabled)
+        # TASK18-B-11: the generic notice was removed; the concrete blocking reason is shown instead.
+        reason=at.button(key="dcc_analysis_run").help
+        self.assertTrue(reason and any(row.value==reason for row in analysis.caption),reason)
         batch_buttons=lambda:[row for row in at.button if row.key and row.key.startswith("sqlite_batch_")]
-        self.assertEqual(len(batch_buttons()),7)
-        self.assertFalse(any(row.key and row.key.startswith("batch_table_page_") for row in at.selectbox))
+        # TASK18-B-10A.1: every Batch rendered newest first inside a 3-row-high scroll area (no pager).
         expected=runtime_provider().batches().sort_values("created_at",ascending=False,kind="stable")["batch_id"].tolist()
         self.assertEqual([row.key.removeprefix("sqlite_batch_") for row in batch_buttons()],expected)
+        self.assertFalse(any(row.key in ("batch_table_next","batch_table_prev") for row in at.button if row.key))
         def find_table(node):
             if str(getattr(getattr(node,"proto",None),"id","")).endswith("-batch_table"):
                 return node
@@ -86,7 +88,8 @@ class UnifiedDataControlTests(unittest.TestCase):
                     if found is not None:
                         return found
             return None
-        self.assertEqual(find_table(at._tree).proto.height_config.pixel_height,160)
+        from dashboard.components.tables import BATCH_HEADER_PX,BATCH_ROW_PX
+        self.assertEqual(find_table(at._tree).proto.height_config.pixel_height,BATCH_HEADER_PX+3*BATCH_ROW_PX)
         # The oldest row, previously hidden on page 2, still opens its real detail.
         chosen=batch_buttons()[-1]
         identity=chosen.key.removeprefix("sqlite_batch_")
@@ -111,10 +114,10 @@ class UnifiedDataControlTests(unittest.TestCase):
             self.assertFalse(expand.proto.expanded)
         self.duplicate_choices(at)[0].select("HOLD").run()
         self.assertTrue(at.button(key="sqlite_register").disabled)
-        at.radio(key="data_control_source").set_value("Mock").run()
+        at.session_state["data_control_selected_source"]="Mock";at.run()
         self.assertFalse(at.exception)
         self.assertFalse(any(row.key=="sqlite_register" for row in at.button))
-        at.radio(key="data_control_source").set_value("SQLite").run()
+        at.session_state["data_control_selected_source"]="SQLite";at.run()
         self.assertFalse(at.exception)
         self.assertEqual(self.duplicate_choices(at)[0].value,"HOLD")
         self.assertTrue(at.button(key="sqlite_register").disabled)
@@ -127,7 +130,7 @@ class UnifiedDataControlTests(unittest.TestCase):
 
     def test_mock_single_preview_and_four_filters_do_not_touch_sqlite(self):
         at=self.app()
-        at.radio(key="data_control_source").set_value("Mock").run()
+        at.session_state["data_control_selected_source"]="Mock";at.run()
         at.radio(key="input_mode").set_value("Single Image").run()
         next(row for row in at.button if row.label=="Mock Metadata 미리보기").click().run()
         self.assertFalse(at.exception)

@@ -43,13 +43,23 @@ class MockDataTests(unittest.TestCase):
 
 class PageTests(unittest.TestCase):
     def app(self):
-        at = AppTest.from_file(ROOT/"dashboard/app.py",default_timeout=20).run()
+        at = AppTest.from_file(ROOT/"dashboard/app.py",default_timeout=20)
+        at.session_state["data_control_selected_source"]="Mock"  # TASK18-B-8: DCC defaults to SQLite; Mock UI tested explicitly.
+        at.session_state["_wafer_source"]="Mock"  # TASK18-B-6: operational Wafer Map is SQLite-only; this suite tests the preserved Mock UI explicitly.
+        at.run()
         self.assertEqual(len(at.exception),0,list(at.exception))
         return at
 
     def assert_page_ok(self,at):
         self.assertEqual(len(at.exception),0,list(at.exception))
-        self.assertTrue(any("MOCK DATA" in c.value for c in at.caption))
+        if at.session_state["active_page_key"] in {"experiment_environment","critical_criteria"}:
+            self.assertTrue(any("LOCAL RECORDS" in c.value for c in at.sidebar.caption))
+        elif at.session_state["active_page_key"]=="model_performance":
+            self.assertTrue(any("MLFLOW" in c.value for c in at.sidebar.caption))
+        elif at.session_state["active_page_key"] in ("main_home","dataset"):  # TASK18-B-9 / 18-B-13A.1: no header caption.
+            self.assertTrue(any("SQLITE" in c.value for c in at.sidebar.caption))
+        else:
+            self.assertTrue(any("참고용 예시 화면" in c.value or "SQLite" in c.value for c in at.caption))
 
     def button(self,at,label):
         return next(b for b in at.button if b.label == label)
@@ -66,9 +76,16 @@ class PageTests(unittest.TestCase):
         for key,(path,title,url,icon) in PAGE_SPECS.items():
             with self.subTest(page=key):
                 at.switch_page(path).run()
-                self.assert_page_ok(at)
+                if key=="image_detail":
+                    self.assertFalse(at.exception)
+                    self.assertTrue(any("SQLITE" in row.value for row in at.sidebar.caption))
+                    self.assertTrue(any("Image를 찾을 수 없습니다" in row.value for row in at.warning))
+                else:
+                    self.assert_page_ok(at)
                 if key == "main_home":
-                    self.assertTrue(any("데이터에서 인사이트" in m.value for m in at.markdown))
+                    self.assertFalse(any("데이터에서 인사이트" in m.value for m in at.markdown))
+                    self.assertTrue(any("DATA WORKSPACE" in m.value for m in at.markdown))
+                    self.assertTrue(any("ANALYSIS WORKSPACE" in m.value for m in at.markdown))
                 else:
                     self.assertTrue(any(e.value == title for e in at.title),title)
 
@@ -130,8 +147,10 @@ class PageTests(unittest.TestCase):
     def test_batch_summary_is_a_table_for_the_selected_batch(self):
         at = self.app().switch_page("pages/inspection_analysis.py").run()
         self.assertTrue(any("Batch 결과 표" in s.value for s in at.subheader))
-        expected = data.batch_summary_table(at.session_state["selected_batch_id"])
-        self.assertTrue(any(df.value.equals(expected) for df in at.dataframe))
+        table=next(df.value for df in at.dataframe if set(df.value.columns)=={"항목","평균 (µm)","표준편차 (µm)"})
+        self.assertEqual(table["항목"].tolist(),["Line Width","Gap","Edge"])
+        self.assertTrue(all("예시" in value for value in table["평균 (µm)"]))
+        self.assertEqual(set(table["표준편차 (µm)"]),{"데이터 없음"})
 
 
 class Phase11ProviderTests(unittest.TestCase):

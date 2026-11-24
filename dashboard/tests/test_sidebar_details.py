@@ -2,6 +2,8 @@
 from pathlib import Path
 import sys
 import unittest
+import tempfile
+import os
 from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT))
@@ -10,10 +12,17 @@ from dashboard import data_provider as data
 from dashboard.navigation import PAGE_SPECS,COMMON
 
 EXPERIMENT_TABS=["장비 사양","Wafer / Die / Pattern 구조","공정 조건",
-                 "Mask 설계 / 제작값","오차율 계산 기준(허용값)","Calibration"]
+                 "Mask 설계 / 제작값","오차율 계산 기준(허용값)","Calibration","계측 방법"]
 
 
 class SidebarDetailTests(unittest.TestCase):
+    def setUp(self):
+        (ROOT/"dashboard/.tmp").mkdir(parents=True,exist_ok=True)
+        temporary=tempfile.TemporaryDirectory(dir=ROOT/"dashboard/.tmp",prefix="sidebar_records_")
+        self.addCleanup(temporary.cleanup)
+        env=patch.dict(os.environ,{"IDA_RECORDS_DIR":temporary.name,"IDA_RECORDS_EDIT_ENABLED":"0"})
+        env.start();self.addCleanup(env.stop)
+
     def app(self,page="main_home"):
         at=AppTest.from_file(ROOT/"dashboard/app.py",default_timeout=30).run()
         if page!="main_home":
@@ -37,7 +46,7 @@ class SidebarDetailTests(unittest.TestCase):
             self.assertLess(labels.index("모델 성능"),labels.index("실험 환경 및 조건"))
             self.assertLess(labels.index("모델 선정 기준"),labels.index("설정"))
 
-    def test_calibration_page_and_tab_reuse_one_renderer_and_provider(self):
+    def test_experiment_record_tab_preserves_separate_calibration_page(self):
         from dashboard.components.calibration import render_calibration
         reference=data.calibration_records().copy()
         reference["test_only_note"]="shared source"
@@ -48,25 +57,27 @@ class SidebarDetailTests(unittest.TestCase):
                 at.switch_page(PAGE_SPECS["experiment_environment"][0]).run()
                 self.assertEqual(len(at.exception),0)
                 self.assertEqual([t.label for t in at.tabs],EXPERIMENT_TABS)
-                self.assertTrue(any(df.value.equals(reference) for df in at.dataframe))
-        self.assertEqual(renderer.call_count,2)
+                self.assertTrue(any("항목" in df.value and "X축 Calibration 값" in df.value["항목"].tolist() for df in at.dataframe))
+                self.assertFalse(any(df.value.equals(reference) for df in at.dataframe))
+        self.assertEqual(renderer.call_count,1)
 
-    def test_mlflow_tab_and_model_page_use_same_renderer(self):
+    def test_mlflow_is_preserved_in_model_page_after_ia_process_tabs_replace_it(self):
         from dashboard.components.mlflow import render_mlflow
         with patch("dashboard.components.mlflow.render_mlflow",wraps=render_mlflow) as renderer:
             at=self.app("inspection_analysis")
-            ia_body=next(m.value for m in at.markdown if "MLflow · 미연결" in m.value)
+            self.assertEqual([tab.label for tab in at.tabs],["Wafer / Image","선폭 / 오차율","노광","PEB","Repeatability","Lighting"])  # TASK18-B-8
+            self.assertFalse(any("MLflow · 미연결" in m.value for m in at.markdown))
             at.switch_page(PAGE_SPECS["model_selection"][0]).run()
             self.assertEqual(len(at.exception),0)
             model_body=next(m.value for m in at.markdown if "MLflow · 미연결" in m.value)
-            self.assertEqual(ia_body,model_body)
+            self.assertIn("MLflow · 미연결",model_body)
             self.assertEqual([e.label for e in at.expander],
                              ["모델 후보","선정 지표","성능 비교","선정 이유","최종 모델 및 버전"])
-        self.assertEqual(renderer.call_count,2)
+        self.assertEqual(renderer.call_count,1)
 
-    def test_critical_and_ai_tabs_are_placeholders(self):
+    def test_critical_records_and_ai_placeholder_tabs(self):
         for key,labels in [
-            ("critical_criteria",["측정 Critical 기준","결함 Critical 기준"]),
+            ("critical_criteria",["측정 Critical 기준","결함 Critical 기준","Die / Row 판정","집계 / 제외 정책"]),
             ("ai_usage",["Before & After AI","AI Tool"])
         ]:
             at=self.app(key)

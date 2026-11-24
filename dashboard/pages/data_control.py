@@ -1,12 +1,13 @@
 import streamlit as st
 from dashboard import data_provider as data
-from dashboard.components.layout import page_title,card_title
+from dashboard.components.layout import inline_title,card_title
 from dashboard.components.pipeline import processing_pipeline,image_status_tiles
 from dashboard.components.tables import batch_table
 from dashboard.components.data_overview import accumulation_overview,processing_progress
 from dashboard.components import sqlite_input
+from dashboard.components.analysis_management import render_analysis_management
 
-page_title("Data Control Center","입력·축적·Batch 상태를 확인합니다. 분석 기능은 Mock/미연결입니다.","A / DATA CONTROL")
+inline_title("Data Control Center","등록·Batch 조회·분석 대상 미리보기·축적 현황을 확인합니다.")
 
 
 
@@ -14,24 +15,25 @@ def toggle_card(key):
     st.session_state["dcc_expanded_card"]=None if st.session_state.get("dcc_expanded_card")==key else key
 
 
-def control_card_title(key,title,description=""):
-    title_col,action_col=st.columns([5,1.1],vertical_alignment="center")
-    with title_col:
-        card_title(title,description)
-    action_col.button("복원" if st.session_state.get("dcc_expanded_card")==key else "확대",
-                      key="dcc_expand_"+key,on_click=toggle_card,args=(key,),width="stretch",
-                      help="선택 카드를 넓게 보기 / 기본 2×2 배치로 복원")
+def control_card_title(key,title,description="",*,separator=False):
+    """Title + description on one line; a small zoom icon (same toggle as the former 확대/복원 button)."""
+    expanded=st.session_state.get("dcc_expanded_card")==key
+    with st.container(key="card_head_"+key,horizontal=True,vertical_alignment="center",gap="small"):
+        st.subheader(title,anchor=False,width="content")
+        if description:
+            st.caption(("|  " if separator else "")+description,width="stretch")
+        else:
+            st.space("stretch")
+        st.button(":material/close_fullscreen:" if expanded else ":material/open_in_full:",
+                  key="dcc_expand_"+key,on_click=toggle_card,args=(key,),type="tertiary",
+                  help="기본 2×2 배치로 복원" if expanded else "카드 확대")
 
 
-def remember_source():
-    st.session_state["data_control_selected_source"] = st.session_state["data_control_source"]
-
-
-source = st.radio("데이터 소스",["Mock","SQLite"],horizontal=True,key="data_control_source",
-                  index=["Mock","SQLite"].index(st.session_state.get("data_control_selected_source","Mock")),
-                  on_change=remember_source)
+# Operational default is SQLite. Mock remains only for explicit internal/test selection
+# (session `data_control_selected_source="Mock"`); there is no UI switch and no fallback.
+source=st.session_state.get("data_control_selected_source","SQLite")
 def render_input_card():
-    control_card_title("input","데이터 입력","Mock 미리보기 / SQLite 승인 후 등록")
+    control_card_title("input","데이터 입력","업로드 → Metadata 확인 → 승인 후 SQLite 등록",separator=True)
     registration_tab,review_tab = st.tabs(["이미지 등록","파일명 확인·수정"])
     with registration_tab:
         saved_common = st.session_state.get("sqlite_uploads",{}).get("common_metadata",{}) if source=="SQLite" else {}
@@ -43,8 +45,8 @@ def render_input_card():
                             help="필수 · Batch는 등록 작업 단위이며 Wafer는 물리적 촬영 대상입니다.",
                             index=modes.index(saved_common.get("mode","Wafer Batch")))
         if source == "Mock":
-            with files_col,st.popover("파일 · 미연결",width="stretch"):
-                st.file_uploader("이미지 선택 · UI만 제공",accept_multiple_files=True,disabled=True)
+            with files_col,st.popover("파일 (Mock)",width="stretch"):
+                st.file_uploader("Mock 모드에서는 업로드하지 않습니다",accept_multiple_files=True,disabled=True)
         dataset_role = st.radio("Dataset Role",data.DATASET_ROLES,index=data.DATASET_ROLES.index(saved_common.get("dataset_role","EVALUATION")),
                                 horizontal=True,key="dataset_role",help="필수 · 학습 Train/Val/Test 분할과 별개입니다.",
                                 format_func=lambda role:role+" — "+data.DATASET_ROLE_LABELS[role])
@@ -53,13 +55,15 @@ def render_input_card():
         else:
             with st.form("mock_metadata",border=False):
                 exposure = st.selectbox("노광 조건 (예시)",[50,60,70,80],index=1,key="input_exposure")
+                peb = st.number_input("PEB Time (s, 선택 · Mock)",value=None,step=1.0,
+                                      key="input_peb_temperature_c",placeholder="미입력 유지")
                 upload_requested = st.form_submit_button("이미지 업로드",width="stretch")
                 submitted = st.form_submit_button("Mock Metadata 미리보기",type="primary",width="stretch")
             if upload_requested:
                 st.info("이미지 업로드 미연결 · 향후 다중 이미지/ZIP 입력을 연결할 위치입니다. 실제 업로드·저장은 수행하지 않습니다.")
             if submitted:
                 st.session_state["mock_metadata_preview"] = data.upload_batch_preview(
-                    mode=mode,exposure_example=exposure,dataset_role=dataset_role)
+                    mode=mode,exposure_example=exposure,dataset_role=dataset_role,peb_temperature_c=peb)
                 st.success("선택값 미리보기입니다. 실제 Batch 등록·파일 저장은 수행하지 않았습니다.")
             if "mock_metadata_preview" in st.session_state:
                 st.json(st.session_state["mock_metadata_preview"],expanded=False)
@@ -107,7 +111,7 @@ def render_input_card():
 
 
 def render_overview_card():
-    control_card_title("pipeline","데이터 축적 현황")
+    control_card_title("pipeline","데이터 축적 현황","SQLite 등록·분석 이력",separator=True)
     if source=="Mock":
         accumulation_overview()
         processing_pipeline()
@@ -117,7 +121,7 @@ def render_overview_card():
 
 
 def render_batches_card():
-    control_card_title("batches","Batch 목록 및 전체 이미지 조회","Batch를 선택하면 기존 상세페이지로 이동합니다.")
+    control_card_title("batches","Batch 목록","Batch를 선택하면 상세 페이지로 이동합니다.",separator=True)
     sqlite_input.render_batches(source=source)
 
 
@@ -129,9 +133,19 @@ def render_progress_card():
         sqlite_input.render_progress()
 
 
-renderers={"input":render_input_card,"pipeline":render_overview_card,
-           "batches":render_batches_card,"progress":render_progress_card}
+def render_analysis_card():
+    control_card_title("analysis","분석 실행 관리","대상 확인 → READY 이미지 수동 실행",separator=True)
+    render_analysis_management(source)
+
+
+renderers={"input":render_input_card,"batches":render_batches_card,
+           "analysis":render_analysis_card,"pipeline":render_overview_card}
+heights={"input":480,"batches":480,"analysis":620,"pipeline":620}  # TASK18-B-10A: top cards fit their default content
+widths={"top":[1,1.3],"bottom":[1.45,1]}
 expanded=st.session_state.get("dcc_expanded_card")
+if expanded is not None and expanded not in renderers:
+    st.session_state["dcc_expanded_card"]=None
+    expanded=None
 if expanded in renderers:
     # Keep every card mounted: keyed widgets/drafts survive expand and restore.
     with st.container(border=True,height="content",key="card_data_"+expanded):
@@ -140,16 +154,16 @@ if expanded in renderers:
     for start in range(0,len(remaining),2):
         columns=st.columns(2,gap="medium")
         for col,key in zip(columns,remaining[start:start+2]):
-            with col,st.container(border=True,height=480 if key in ("input","pipeline") else 320,key="card_data_"+key):
+            with col,st.container(border=True,height=heights[key],key="card_data_"+key):
                 renderers[key]()
 else:
-    top_left,top_right=st.columns(2,gap="medium")
-    with top_left,st.container(border=True,height=480,key="card_data_input"):
+    top_left,top_right=st.columns(widths["top"],gap="medium")
+    with top_left,st.container(border=True,height=heights["input"],key="card_data_input"):
         render_input_card()
-    with top_right,st.container(border=True,height=480,key="card_data_pipeline"):
-        render_overview_card()
-    bottom_left,bottom_right=st.columns(2,gap="medium")
-    with bottom_left,st.container(border=True,height=320,key="card_data_batches"):
+    with top_right,st.container(border=True,height=heights["batches"],key="card_data_batches"):
         render_batches_card()
-    with bottom_right,st.container(border=True,height=320,key="card_data_progress"):
-        render_progress_card()
+    bottom_left,bottom_right=st.columns(widths["bottom"],gap="medium")
+    with bottom_left,st.container(border=True,height=heights["analysis"],key="card_data_analysis"):
+        render_analysis_card()
+    with bottom_right,st.container(border=True,height=heights["pipeline"],key="card_data_pipeline"):
+        render_overview_card()

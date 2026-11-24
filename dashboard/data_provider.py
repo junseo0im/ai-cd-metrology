@@ -22,7 +22,7 @@ REVIEW_DIE_CODES = tuple(f"{row}{column}" for row in range(1,4) for column in ra
 
 
 def upload_batch_preview(*,batch_id=None,wafer_id=None,physical_site_id=None,mode,exposure_example,
-                         dataset_role="EVALUATION"):
+                         dataset_role="EVALUATION",peb_temperature_c=None):
     """Mock batch metadata contract; dataset_role can map to upload_batches.
 
     Returns a session preview only. No upload, persistence, or split is created.
@@ -31,7 +31,7 @@ def upload_batch_preview(*,batch_id=None,wafer_id=None,physical_site_id=None,mod
     if dataset_role not in DATASET_ROLES:
         raise ValueError("Unknown dataset_role")
     return {"batch_id":batch_id,"wafer_id":wafer_id,"physical_site_id":physical_site_id,
-            "mode":mode,"exposure_example":exposure_example,"dataset_role":dataset_role,
+            "mode":mode,"exposure_example":exposure_example,"dataset_role":dataset_role,"peb_temperature_c":peb_temperature_c,
             "source":"mock_input_preview","saved_to_database":False}
 
 

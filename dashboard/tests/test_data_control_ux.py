@@ -73,9 +73,9 @@ class DataControlUXTests(unittest.TestCase):
         with patch("streamlit.image") as image:
             at.button(key="sqlite_open_file_NoneNone").click().run()
             self.assertTrue(image.called)
-            for card in ("input","batches","pipeline","progress"):
+            for card in ("input","batches","pipeline","analysis"):
                 self.toggle(at,card)
-                self.assertEqual(at.button(key="dcc_expand_"+card).label,"복원")
+                self.assertEqual(at.button(key="dcc_expand_"+card).label,":material/close_fullscreen:")
                 self.assertEqual(self.cards(at)["card_data_"+card][1],0)  # content height, no fixed inner scroll
                 self.assertEqual(len(self.cards(at)),4)  # Other widgets stay mounted.
                 self.assertEqual(at.radio(key="dataset_role").value,"DEVELOPMENT")
@@ -86,13 +86,13 @@ class DataControlUXTests(unittest.TestCase):
                 self.assertFalse(at.button(key="sqlite_register").disabled)
                 self.toggle(at,card)
                 self.assertEqual(self.cards(at)["card_data_input"][1],480)
-                self.assertEqual(self.cards(at)["card_data_batches"][1],320)
+                self.assertEqual(self.cards(at)["card_data_batches"][1],480)
         self.assertEqual(runtime_provider().image_count(),1)
         self.assertEqual(runtime_provider().batches()["batch_id"].tolist(),[seed["batch_id"]])
 
     def test_mock_expansion_keeps_preview_and_common_default_layout(self):
         at=self.app()
-        at.radio(key="data_control_source").set_value("Mock").run()
+        at.session_state["data_control_selected_source"]="Mock";at.run()
         at.radio(key="input_mode").set_value("Lighting").run()
         at.radio(key="dataset_role").set_value("TRAINING_CANDIDATE").run()
         at.selectbox(key="input_exposure").select(70)
@@ -154,12 +154,14 @@ class DataControlUXTests(unittest.TestCase):
                 bundle["files"].cleanup()
         at=self.app()
         batch_card=self.cards(at)["card_data_batches"][2]
+        # TASK18-B-8: 유형·Role·등록일은 Batch 이름 tooltip으로 이동 (정보 유지).
+        helps=[b.proto.help for b in batch_card.button if b.key and b.key.startswith("sqlite_batch_")]
+        self.assertTrue(any("유형 반복촬영" in h for h in helps))
+        self.assertTrue(any("유형 밝기" in h for h in helps))
+        self.assertTrue(any("Role EVAL" in h for h in helps))
         cells=batch_card.markdown
-        self.assertTrue(any(row.value=="반복촬영" and row.proto.help=="repeatability" for row in cells))
-        self.assertTrue(any(row.value=="밝기" and row.proto.help=="lighting" for row in cells))
-        self.assertTrue(any(row.value=="EVAL" and row.proto.help=="EVALUATION" for row in cells))
         self.assertTrue(any(row.value=="60" and "노광 60" in row.proto.help for row in cells))
-        self.assertTrue(any(row.proto.help.startswith("2026-") for row in cells))
+        self.assertTrue(any("등록 2026-" in h for h in helps))
         for label,code in (("Lighting","lighting"),("Repeatability","repeatability")):
             at.selectbox(key="sqlite_image_filter_None").select(label).run()
             self.assertFalse(at.exception)
@@ -196,8 +198,10 @@ class DataControlUXTests(unittest.TestCase):
         at.radio(key="input_mode").set_value("Repeatability").run()
         self.assertFalse(at.exception)
         self.assertFalse(any(row.key.startswith("sqlite_light_") for row in at.text_input))
-        self.assertEqual(len(at.number_input),1)
-        self.assertEqual(at.number_input[0].value,1)
+        repeats=[row for row in at.number_input if row.key.startswith("sqlite_repeat_")]
+        self.assertEqual(len(repeats),1)
+        self.assertEqual(repeats[0].value,1)
+        self.assertTrue(any(row.key.startswith("sqlite_peb_") for row in at.number_input))
         self.assertTrue(runtime_provider().batches().empty)
 
 

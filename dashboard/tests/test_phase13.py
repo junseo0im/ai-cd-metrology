@@ -11,7 +11,10 @@ from dashboard.navigation import PAGE_SPECS
 
 class Phase13Tests(unittest.TestCase):
     def app(self,page):
-        at=AppTest.from_file(ROOT/"dashboard/app.py",default_timeout=20).run()
+        at=AppTest.from_file(ROOT/"dashboard/app.py",default_timeout=20)
+        at.session_state["data_control_selected_source"]="Mock"  # TASK18-B-8: Mock DCC only when explicitly selected.
+        at.session_state["_wafer_source"]="Mock"  # TASK18-B-6: operational Wafer Map is SQLite-only; this suite tests the preserved Mock UI explicitly.
+        at.run()
         at.switch_page(PAGE_SPECS[page][0]).run()
         self.assertEqual(len(at.exception),0)
         return at
@@ -46,8 +49,8 @@ class Phase13Tests(unittest.TestCase):
 
     def test_inspection_tabs_and_simulation_return_preserve_selection_overlay(self):
         at=self.app("inspection_analysis")
-        self.assertEqual([t.label for t in at.tabs],["공정 조건별 그래프","MLflow"])
-        self.assertEqual(len(at.dataframe),2)
+        self.assertEqual([t.label for t in at.tabs],["노광","PEB"])
+        self.assertTrue(any("표준편차 (µm)" in item.value for item in at.dataframe))
         at.selectbox(key="ia_image").select("IMG-DEMO-1-17").run()
         at.toggle(key="ia_overlay").set_value(False).run()
         self.click(at,"Simulation")
@@ -58,11 +61,11 @@ class Phase13Tests(unittest.TestCase):
         self.assertEqual(at.session_state["selected_die_id"],"31")
         self.assertFalse(at.toggle(key="ia_overlay").value)
 
-    def test_data_control_progress_is_mock_and_pipeline_tiles_remain(self):
+    def test_data_control_analysis_preview_replaces_progress_and_pipeline_tiles_remain(self):
         at=self.app("data_control")
-        self.assertTrue(any(s.value=="등록·처리 상태 요약" for s in at.subheader))
-        self.assertEqual(len(at.get("progress")),1)
-        self.assertTrue(any(df.value.equals(data.processing_stage_table()) for df in at.dataframe))
+        self.assertTrue(any(s.value=="분석 실행 관리" for s in at.subheader))
+        self.assertEqual(len(at.get("progress")),0)
+        self.assertTrue(at.button(key="dcc_analysis_run").disabled)
         self.assertTrue(any("class=\"pipeline\"" in m.value for m in at.markdown))
         self.assertTrue(any("class=\"image-tiles\"" in m.value for m in at.markdown))
         self.assertEqual(len(data.processing_stage_table()),4)

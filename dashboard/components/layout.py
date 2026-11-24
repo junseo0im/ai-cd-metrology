@@ -4,12 +4,11 @@ import streamlit as st
 from dashboard import data_provider as data
 from dashboard.navigation import navigate,PAGE_SPECS,page_data_source
 from dashboard.components.theme import apply_theme
+from dashboard.components.auth_ui import user_menu
 
 def header(page_title):
     apply_theme()
     source=page_data_source(st.session_state.get("active_page_key"),st.session_state)
-    batch_id = st.session_state.get("selected_batch_id")
-    selected = data.batch(batch_id) if batch_id else None
     with st.container(key="platform_header"):
         brand,search,bell,user = st.columns([5.6,3.1,.55,1.25],gap="small")
         with brand:
@@ -17,22 +16,48 @@ def header(page_title):
                         '<span class="ida-brand">IDA Inspection Platform</span>'
                         '<span class="ida-separator">|</span><span class="ida-page">'+
                         escape(page_title)+'</span></div>',unsafe_allow_html=True)
-        search.text_input("Dataset / Batch 검색 (미연결)",placeholder="Dataset / Batch 검색 · 미연결",
-                          disabled=True,label_visibility="collapsed",key="header_search")
-        bell.button("🔔",disabled=True,help="알림 Mock · 실제 알림 기능 미연결",width="stretch")
-        user.button("DEMO USER",disabled=True,help="사용자 메뉴 Mock · 인증 기능 미연결",width="stretch")
-        context = ("Batch "+selected["batch_id"]+" · Wafer "+selected["wafer_id"]) if selected else "Batch / Wafer 선택 없음"
-        if source=="SQLite":
-            st.caption("SQLite 등록·조회 모드 · Calibration·계측·YOLO 미연결 · 등록 완료 ≠ 분석 완료")
+        with bell:
+            from dashboard.notifications import render_bell
+            render_bell()
+        with user:
+            user_menu()
+        if st.session_state.get("active_page_key") in ("main_home","data_control"):
+            pass  # TASK18-B-9 / 18-B-10A: no status caption (result/save/quality states are shown where they apply).
+        elif st.session_state.get("active_page_key")=="model_performance":
+            st.caption("MLflow 실험 기록 조회 · 읽기 전용 / Roboflow 연결 준비 · 운영 계측·AI 결과와 별개")
+        elif source=="Records":
+            st.caption("로컬 JSON 기록 · 실험 정보·판정 기준 보관용 · 실제 AI·계측·Runner에 자동 적용하지 않음")
+        elif source=="SQLite" and st.session_state.get("active_page_key")=="inspection_analysis":
+            pass  # TASK18-B-13A: header notice removed (provisional/adoption state is shown with the results).
+        elif source=="SQLite" and st.session_state.get("active_page_key")=="dataset":
+            pass  # TASK18-B-13A.1: no header notice on 전체 Dataset.
+        elif source=="SQLite":
+            st.caption("SQLite 운영 DB · 등록 완료 ≠ 분석 완료 · AI 결과는 잠정 (공식 채택 아님)")
         else:
-            st.caption(data.catalog()["notice"]+" · "+context)
+            st.caption("참고용 예시 화면 · 운영 SQLite 데이터가 아닙니다.")
+        try:  # TASK18-B-11: running analysis is visible on every page (Data Control shows it in D).
+            from dashboard.components.analysis_management import render_global_progress
+            render_global_progress(st.session_state.get("active_page_key"))
+        except Exception as exc:  # Never break a page because of the status strip.
+            st.caption("분석 진행 상태를 확인할 수 없습니다: "+type(exc).__name__)
+    from dashboard.notifications import flush_toasts
+    flush_toasts()
 
 
 def page_title(title,description,kicker="WORKSPACE"):
     with st.container(key="page_heading"):
         st.markdown('<div class="eyebrow">'+escape(kicker)+'</div>',unsafe_allow_html=True)
         st.title(title)
-        st.caption(description)
+        if description:
+            st.caption(description)
+
+
+def inline_title(title,description):
+    """One-line page heading: `Title | description` (no kicker)."""
+    with st.container(key="page_heading_inline",horizontal=True,vertical_alignment="bottom",gap="small"):
+        st.title(title,anchor=False,width="content")
+        if description:
+            st.caption("|  "+description,width="content")
 
 
 def card_title(title,description=""):

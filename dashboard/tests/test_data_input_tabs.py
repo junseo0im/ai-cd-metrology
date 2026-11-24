@@ -11,7 +11,9 @@ from dashboard import data_provider as data
 
 class DataInputTabsTests(unittest.TestCase):
     def app(self):
-        at=AppTest.from_file(ROOT/"dashboard/app.py",default_timeout=30).run()
+        at=AppTest.from_file(ROOT/"dashboard/app.py",default_timeout=30)
+        at.session_state["data_control_selected_source"]="Mock"  # TASK18-B-8: Mock DCC only when explicitly selected.
+        at.run()
         at.switch_page("pages/data_control.py").run()
         self.assertEqual(len(at.exception),0)
         return at
@@ -23,9 +25,9 @@ class DataInputTabsTests(unittest.TestCase):
     def test_exposure_options_preview_and_existing_card_layout(self):
         at=self.app()
         source=(ROOT/"dashboard/pages/data_control.py").read_text(encoding="utf-8")
-        for key in ("card_data_input","card_data_pipeline","card_data_batches","card_data_progress"):
+        for key in ("card_data_input","card_data_pipeline","card_data_batches","card_data_analysis"):
             self.assertIn('key="'+key+'"',source)
-        self.assertIn('height=480,key="card_data_input"',source)
+        self.assertIn('height=heights["input"],key="card_data_input"',source)
         for exposure in (50,60,70,80):
             at.selectbox(key="input_exposure").select(exposure)
             self.click(at,"Mock Metadata 미리보기")

@@ -13,6 +13,8 @@ Thumbs.db
 # Local environment
 .env
 .env.*
+# Shareable templates without real values
+!.env.example
 
 # Dataset files
 data/raw/
@@ -24,6 +26,8 @@ outputs/
 artifacts/
 reports/
 runtime_data/
+# Personal local dashboard data (dashboard/README.md team setup)
+dev_data/
 
 # Local datasets, training outputs and transfer packages
 data/incoming/

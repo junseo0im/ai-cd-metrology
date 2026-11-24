@@ -10,7 +10,9 @@ PAGE_SPECS = {
     "settings":("pages/settings.py","설정","platform-settings",":material/settings:"),
     "calibration":("pages/calibration.py","Calibration","data-calibration",":material/straighten:"),
     "batch_detail":("pages/batch_detail.py","Batch 상세","data-batch-detail",":material/grid_view:"),
+    "wafer_detail":("pages/wafer_detail.py","Wafer 상세","data-wafer-detail",":material/blur_circular:"),
     "wafer_map":("pages/wafer_map.py","Wafer Map","wafer-map",":material/grid_on:"),
+    "image_detail":("pages/image_detail.py","Image 상세","data-image-detail",":material/image:"),
     "image_analysis":("pages/image_analysis.py","이미지 분석","image-analysis",":material/image_search:"),
     "results_report":("pages/results_report.py","결과 리포트","reports",":material/description:"),
     "repeatability":("pages/repeatability.py","Repeatability","inspection-repeatability",":material/repeat:"),
@@ -21,7 +23,7 @@ PAGE_SPECS = {
     "ai_usage":("pages/ai_usage.py","AI 활용","ai-usage",":material/psychology:"),
     "model_selection":("pages/model_selection.py","모델 선정 기준","model-selection-criteria",":material/fact_check:"),
 }
-A_PAGES = {"data_control","calibration","batch_detail"}
+A_PAGES = {"data_control","calibration","batch_detail","wafer_detail","image_detail"}
 B_PAGES = {"inspection_analysis","wafer_map","image_analysis","results_report","repeatability","lighting","simulation"}
 COMMON = ["main_home","data_control","inspection_analysis","dataset","model_performance",
           "experiment_environment","critical_criteria","ai_usage","model_selection","settings"]
@@ -58,7 +60,7 @@ def prepare_page_context(active):
     mode = "Repeatability" if active == "repeatability" else "Lighting" if active == "lighting" else None
     if mode:
         st.session_state["selected_batch_id"] = data.batches(mode).iloc[0]["batch_id"]
-    elif active in {"inspection_analysis","wafer_map","batch_detail","image_analysis","results_report"}:
+    elif active in {"inspection_analysis","wafer_map","batch_detail","image_analysis"}:
         options = data.batches("Wafer Batch" if active in {"inspection_analysis","wafer_map"} else None)["batch_id"].tolist()
         if st.session_state.get("selected_batch_id") not in options:
             st.session_state["selected_batch_id"] = options[0]
@@ -66,8 +68,15 @@ def prepare_page_context(active):
 
 def page_data_source(active,state):
     """Registration source is local to its pages, never inherited by Mock analysis."""
+    if active in {"experiment_environment","critical_criteria"}:
+        return "Records"
+    if active in {"inspection_analysis","wafer_map"}:
+        return state.get("_wafer_source","SQLite")  # Operational Wafer Map: SQLite (no selector).
+    if active in {"image_detail","wafer_detail","main_home","dataset","results_report"}:  # dataset: SQLite (TASK18-B-12A); results_report (I&A 리포트)
+        return "SQLite"
     if active=="data_control":
-        return state.get("data_control_selected_source",state.get("data_control_source","Mock"))
+        # Operational default: SQLite. Mock only when explicitly selected (tests / internal use).
+        return state.get("data_control_selected_source","SQLite")
     if active=="batch_detail":
         return state.get("batch_detail_source","Mock")
     return "Mock"

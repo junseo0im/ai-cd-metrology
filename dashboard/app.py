@@ -11,7 +11,7 @@ from dashboard.components.layout import header
 from dashboard.components.sidebar import render
 from dashboard.navigation import make_pages,PAGE_SPECS,apply_batch_link,prepare_page_context
 
-st.set_page_config(page_title="IDA Inspection Platform · UI 예시",page_icon="🔬",
+st.set_page_config(page_title="IDA Inspection Platform",page_icon="🔬",
                    layout="wide",initial_sidebar_state="expanded")
 pages = make_pages()
 selected = st.navigation(list(pages.values()),position="hidden")
@@ -21,4 +21,8 @@ apply_batch_link(active)
 prepare_page_context(active)
 header(PAGE_SPECS[active][1])
 render(pages,active)
+from dashboard.components.waepi import render_waepi
+render_waepi()  # TASK18-B-17: floating '웨피' (before the page body: pages that st.stop() keep it).
 selected.run()
+from dashboard.notifications import flush_toasts
+flush_toasts()  # Events raised by the page itself in this run.

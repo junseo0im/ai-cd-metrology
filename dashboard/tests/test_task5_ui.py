@@ -18,52 +18,50 @@ class Task5SourceTests(unittest.TestCase):
 
     def test_source_notice_changes_without_claiming_sqlite_analysis(self):
         at=self.app()
-        self.assertTrue(any("SQLite 등록·조회" in row.value for row in at.caption))
+        # TASK18-B-10A: the Data Control Center header notice is removed; the sidebar still names the SQLite source.
+        self.assertFalse(any("SQLite 운영 DB" in row.value for row in at.main.caption))
         self.assertTrue(any("SQLITE" in row.value for row in at.sidebar.caption))
         self.assertFalse(any("MOCK DATA ONLY" in row.value for row in at.sidebar.caption))
-        self.assertTrue(any("계측" in row.value and "미연결" in row.value for row in at.caption))
+        self.assertFalse(any("미연결" in row.value for row in at.caption))  # TASK18-B-8: outdated text removed.
+        self.assertTrue(any("AI 결과는 잠정" in row.value for row in at.sidebar.caption))
         at.switch_page("pages/inspection_analysis.py").run()
         self.assertFalse(at.exception)
-        self.assertTrue(any("MOCK DATA ONLY" in row.value for row in at.sidebar.caption))
-        at.switch_page("pages/data_control.py").run()
-        self.assertEqual(at.radio(key="data_control_source").value,"SQLite")
+        # TASK18-B-6: I&A Wafer Map defaults to SQLite (no Mock/SQLite selector).
         self.assertTrue(any("SQLITE" in row.value for row in at.sidebar.caption))
-        at.radio(key="data_control_source").set_value("Mock").run()
-        self.assertTrue(any("MOCK DATA ONLY" in row.value for row in at.sidebar.caption))
-        self.assertFalse(any("SQLite 등록·조회" in row.value for row in at.caption))
+        at.switch_page("pages/data_control.py").run()
+        self.assertEqual((at.session_state["data_control_selected_source"] if "data_control_selected_source" in at.session_state else "SQLite"),"SQLite")
+        self.assertTrue(any("SQLITE" in row.value for row in at.sidebar.caption))
+        at.session_state["data_control_selected_source"]="Mock";at.run()
+        self.assertTrue(any("참고용 예시 화면" in row.value for row in at.sidebar.caption))
+        self.assertFalse(any("SQLite 운영 DB" in row.value for row in at.caption))
 
     def test_source_context_does_not_leak_into_other_pages(self):
         state={"data_control_selected_source":"SQLite","batch_detail_source":"SQLite"}
         self.assertEqual(page_data_source("data_control",state),"SQLite")
         self.assertEqual(page_data_source("batch_detail",state),"SQLite")
-        for active in ("main_home","wafer_map","image_analysis","repeatability","lighting","calibration"):
+        self.assertEqual(page_data_source("data_control",{}),"SQLite")  # TASK18-B-8: operational default.
+        self.assertEqual(page_data_source("main_home",state),"SQLite")  # KPIs are SQLite.
+        for active in ("image_analysis","repeatability","lighting","calibration"):
             self.assertEqual(page_data_source(active,state),"Mock")
+        self.assertEqual(page_data_source("wafer_map",state),"SQLite")  # TASK18-B-6: SQLite-only Wafer Map.
 
 
 class Task5MapTests(unittest.TestCase):
-    def test_standalone_uses_same_72_regions_manual_selection_reset_and_image_binding(self):
-        at=AppTest.from_file(ROOT/"dashboard/app.py",default_timeout=30).run()
+    def test_standalone_24_single_color_dies_and_existing_mock_image(self):
+        at=AppTest.from_file(ROOT/"dashboard/app.py",default_timeout=30)
+        at.session_state["_wafer_source"]="Mock"  # TASK18-B-6: operational Wafer Map is SQLite-only; this suite tests the preserved Mock UI explicitly.
+        at.run()
         at.switch_page("pages/wafer_map.py").run()
         self.assertFalse(at.exception)
         spec=json.loads(at.get("plotly_chart")[0].proto.spec)
-        self.assertEqual(sum(len(trace["customdata"]) for trace in spec["data"]),72)
+        self.assertEqual(sum(len(trace["customdata"]) for trace in spec["data"]),24)
         self.assertEqual({r[0] for trace in spec["data"] for r in trace["customdata"]},
                          {f"{row}{col}" for row in range(1,4) for col in range(1,9)})
-        self.assertEqual({r[1] for trace in spec["data"] for r in trace["customdata"]},{"lt","c","rb"})
-        self.assertEqual({trace["name"] for trace in spec["data"]},
-                         {trace.name for trace in build_inspection_wafer("BATCH-DEMO-060").data})
-        at.selectbox(key="map_image").select("IMG-DEMO-1-17").run()
-        self.assertFalse(at.exception)
-        self.assertEqual(at.session_state["selected_die_id"],"31")
-        self.assertEqual(at.session_state["selected_position"],"c")
-        self.assertEqual(at.session_state["selected_image_id"],"IMG-DEMO-1-17")
-        at.button(key="map_reset").click().run()
-        self.assertFalse(at.exception)
-        self.assertIsNone(at.session_state["selected_die_id"])
-        self.assertIsNone(at.session_state["selected_position"])
-        self.assertEqual(at.selectbox(key="map_image").value,"IMG-DEMO-1-01")
-        self.assertTrue(any("IMG-DEMO-1-01" in row.value and "원본 영역 예시" in row.value for row in at.caption))
+        self.assertEqual({trace["name"] for trace in spec["data"]},{"NOT_EVALUATED"})
+        self.assertEqual(at.session_state["wafer_browser_image_id"],"IMG-DEMO-1-01")
         self.assertTrue(any("공용 예시" in row.value for row in at.caption))
+        self.assertFalse(any(button.label in {f"{row}{col}" for row in range(1,4) for col in range(1,9)}
+                             for button in at.button))
 
 
 class Task5StylesTests(unittest.TestCase):

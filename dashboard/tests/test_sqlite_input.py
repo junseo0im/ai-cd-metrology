@@ -51,7 +51,7 @@ class SQLiteInputTests(unittest.TestCase):
         at=AppTest.from_file(ROOT/"dashboard/app.py",default_timeout=30).run()
         at.switch_page("pages/data_control.py").run()
         self.assertFalse(at.exception)
-        at.radio(key="data_control_source").set_value("SQLite").run()
+        at.session_state["data_control_selected_source"]="SQLite";at.run()
         self.assertFalse(at.exception)
         return at
 
@@ -69,12 +69,12 @@ class SQLiteInputTests(unittest.TestCase):
         self.assertFalse(at.exception)
 
     def confirm_process(self,at):
-        next(item for item in at.selectbox if item.label=="노광 조건").select(60).run()
+        next(item for item in at.number_input if item.label=="노광 조건").set_value(60).run()  # TASK18-B-10A.1: direct entry
         self.assertFalse(at.exception)
 
     def test_empty_sqlite_view_has_no_mock_batches_or_auto_insert(self):
         at=self.app()
-        self.assertTrue(any("등록된 SQLite Batch 없음" in item.value for item in at.info))
+        self.assertTrue(any("등록된 SQLite Batch가 없습니다" in item.value for item in at.info))
         self.assertTrue(runtime_provider().batches().empty)
         self.assertFalse(any(frame.value.equals(mock.batches()) for frame in at.dataframe))
         self.assertFalse((self.root/"raw").exists())
@@ -117,7 +117,7 @@ class SQLiteInputTests(unittest.TestCase):
         at.switch_page("pages/data_control.py").run()
         self.assertFalse(at.exception)
         self.assertTrue(any("SQLite 등록 완료" in item.value for item in at.success))
-        at.radio(key="data_control_source").set_value("Mock").run()
+        at.session_state["data_control_selected_source"]="Mock";at.run()
         self.assertFalse(at.exception)
         self.assertTrue(any(frame.value.equals(mock.batches()) for frame in at.dataframe)
                         or any(item.label.startswith("BATCH-DEMO") for item in at.button))
@@ -714,6 +714,404 @@ class SQLiteInputTests(unittest.TestCase):
         self.assertEqual(at.session_state["batch_detail_source"],"SQLite")
         self.assertEqual(at.title[0].value,"Batch 상세")
         self.assertTrue(any("SQLite 등록 Metadata" in item.value for item in at.caption))
+
+
+class SQLiteBatchDetailTests(unittest.TestCase):
+    """TASK 6: fresh canonical v2 fixtures only; never the operational DB."""
+    app=SQLiteInputTests.app
+    uploaded=SQLiteInputTests.uploaded
+    seed_registered_image=SQLiteInputTests.seed_registered_image
+
+    def setUp(self):
+        SQLiteInputTests.setUp(self)
+        self.db_path=self.root/"detail_v2.sqlite3"
+        with closing(sqlite3.connect(self.db_path)) as con:
+            con.executescript((ROOT/"database/schema_v2.sql").read_text(encoding="utf-8"))
+        environment=patch.dict(os.environ,{"IDA_DB_PATH":str(self.db_path)})
+        environment.start()
+        self.addCleanup(environment.stop)
+
+    def detail(self,identity):
+        at=self.app()
+        if any(button.key=="sqlite_batch_"+identity for button in at.button):
+            at.button(key="sqlite_batch_"+identity).click().run()
+        else:
+            at.session_state["batch_detail_source"]="SQLite"
+            at.session_state["selected_sqlite_batch_id"]=identity
+            at.switch_page("pages/batch_detail.py").run()
+        self.assertFalse(at.exception)
+        # Keep the button-entered route on subsequent AppTest reruns.
+        at.switch_page("pages/batch_detail.py")
+        return at
+
+    def test_primary_key_scopes_lookup_images_and_names(self):
+        first=self.seed_registered_image()
+        other=self.seed_registered_image(pixel=80)
+        provider=runtime_provider()
+        original=provider.images(first["batch_id"]).to_dict("records")
+        provider.rename_batch(first["batch_id"],"같은 이름")
+        provider.rename_batch(other["batch_id"],"같은 이름")
+        record=provider.batch_record(first["batch_id"])
+        self.assertEqual(record["batch_id"],first["batch_id"])
+        self.assertEqual(record["image_count"],1)
+        self.assertEqual(record["batch_name"],"같은 이름")
+        self.assertIsNone(provider.batch_record(record["automatic_display_name"]))
+        self.assertIsNone(provider.batch_record("같은 이름"))
+        self.assertEqual(provider.images(first["batch_id"]).to_dict("records"),original)
+        matrix=provider.batch_processing_matrix(first["batch_id"])
+        self.assertEqual(set(matrix["image_id"]),set(first["image_ids"]))
+        self.assertFalse(set(matrix["image_id"])&set(other["image_ids"]))
+
+    def test_detail_metadata_and_only_selected_batch_images(self):
+        first=self.seed_registered_image()
+        other=self.seed_registered_image(pixel=80)
+        name="긴 사용자 지정 Batch 이름 "*12
+        provider=runtime_provider()
+        provider.rename_batch(first["batch_id"],name)
+        at=self.detail(first["batch_id"])
+        self.assertTrue(any(name.strip() in row.value for row in at.markdown))
+        self.assertIn(first["batch_id"],[row.value for row in at.code])
+        for label,value in (("자동 Batch 표시 번호","W1 · Batch 01"),("이미지 수","1장"),
+                            ("Upload Mode","wafer_batch"),("Wafer ID","W1"),("Dataset Role","evaluation")):
+            self.assertTrue(any(label in row.value and value in row.value for row in at.markdown))
+        for expected in ("노광 단위: DB 미기록 · 표시 기준 mJ/cm²","Lot ID: 미기록"):  # TASK18-B-13A.2 stored state kept visible
+            self.assertIn(expected,[row.value for row in at.text])
+        images=next(row.value for row in at.dataframe if "position_code" in row.value)
+        self.assertEqual(set(images["image_id"]),set(first["image_ids"]))
+        self.assertFalse(set(images["image_id"])&set(other["image_ids"]))
+        self.assertTrue({"physical_site_id","repeat_index","exposure_value","illumination_setting",
+                         "magnification","captured_at"}.issubset(images.columns))
+        self.assertTrue(images["captured_at"].isna().all())
+        from streamlit.dataframe_util import convert_arrow_bytes_to_pandas_df
+        element=next(row for row in at.dataframe if "position_code" in row.value)
+        presented=convert_arrow_bytes_to_pandas_df(element.proto.arrow_data.styler.display_values)
+        self.assertEqual(set(presented["captured_at"]),{"미기록"})
+        self.assertEqual(set(presented["illumination_setting"]),{"미기록"})
+        import json
+        config=json.loads(element.proto.columns)
+        self.assertEqual(config["image_id"]["type_config"]["type"],"text")
+
+    def test_preview_passes_exact_registered_path_and_identity_without_modifying_file(self):
+        import hashlib
+        result=self.seed_registered_image()
+        provider=runtime_provider()
+        row=provider.images(result["batch_id"]).iloc[0]
+        path=Path(row["storage_path"])
+        before=path.read_bytes()
+        at=self.detail(result["batch_id"])
+        with patch("streamlit.image") as image:
+            at.button(key="sqlite_open_file_"+result["batch_id"]+"None").click().run()
+            self.assertFalse(at.exception)
+            image.assert_called_once_with(str(path.resolve()),width="stretch")
+        self.assertEqual(at.session_state["selected_sqlite_image_id"],row["image_id"])
+        self.assertEqual(at.session_state["selected_sqlite_image_batch_id"],result["batch_id"])
+        self.assertTrue(any("Image ID: "+row["image_id"]==value.value for value in at.text))
+        self.assertTrue(any("원본 파일명: "+row["original_filename"]==value.value for value in at.text))
+        self.assertEqual(path.read_bytes(),before)
+        self.assertEqual(hashlib.sha256(before).hexdigest(),row["sha256"])
+
+    def test_missing_changed_and_unreadable_qa_image_are_local_warnings(self):
+        result=self.seed_registered_image()
+        provider=runtime_provider()
+        path=Path(provider.images(result["batch_id"]).iloc[0]["storage_path"])
+        self.assertTrue(path.resolve().is_relative_to(self.root.resolve()))
+        original=path.read_bytes()
+        at=self.detail(result["batch_id"])
+        key="sqlite_open_file_"+result["batch_id"]+"None"
+        path.unlink()  # Synthetic disposable fixture only.
+        with patch("streamlit.image") as image:
+            at.button(key=key).click().run()
+            self.assertFalse(at.exception)
+            self.assertFalse(image.called)
+            self.assertTrue(any("원본 파일" in row.value for row in at.warning))
+        path.write_bytes(png_bytes(pixel=199))
+        with patch("streamlit.image") as image:
+            at.run()
+            self.assertFalse(at.exception)
+            self.assertFalse(image.called)
+            self.assertTrue(any("SHA-256" in row.value for row in at.warning))
+        path.write_bytes(original)
+        with patch("streamlit.image",side_effect=OSError("synthetic unreadable fixture")):
+            at.run()
+            self.assertFalse(at.exception)
+            self.assertTrue(any("읽을 수 없습니다" in row.value for row in at.warning))
+        self.assertEqual(provider.image_count(result["batch_id"]),1)
+
+    def test_filename_mismatch_does_not_show_another_file(self):
+        result=self.seed_registered_image()
+        provider=runtime_provider()
+        with closing(provider.connect(readonly=False)) as con,con:
+            con.execute("UPDATE images SET original_filename='wrong.png' WHERE batch_id=?",(result["batch_id"],))
+        at=self.detail(result["batch_id"])
+        with patch("streamlit.image") as image:
+            at.button(key="sqlite_open_file_"+result["batch_id"]+"None").click().run()
+            self.assertFalse(at.exception)
+            self.assertFalse(image.called)
+            self.assertTrue(any("파일명" in row.value and "일치하지" in row.value for row in at.warning))
+
+    def test_matrix_covers_all_images_beyond_query_page_limit(self):
+        result=self.seed_registered_image()
+        provider=runtime_provider()
+        with closing(provider.connect(readonly=False)) as con,con:
+            cursor=con.execute("SELECT * FROM images WHERE batch_id=?",(result["batch_id"],))
+            columns=[row[0] for row in cursor.description]
+            original=dict(zip(columns,cursor.fetchone()))
+            for index in range(120):
+                copied=dict(original,image_id="DETAIL-EXTRA-"+str(index))
+                con.execute("INSERT INTO images("+",".join(columns)+") VALUES ("+
+                            ",".join("?" for _ in columns)+")",[copied[column] for column in columns])
+        matrix=provider.batch_processing_matrix(result["batch_id"])
+        self.assertEqual(len(matrix),121)
+        self.assertEqual(provider.image_count(result["batch_id"]),121)
+        self.assertEqual(set(matrix["이미지 등록"]),{"등록 완료"})
+        self.assertEqual(set(matrix["Metrology"]),{"I&A에서 조회"})
+        self.assertEqual(set(matrix["Defect AI"]),{"I&A에서 조회"})
+        at=self.detail(result["batch_id"])
+        displayed={row.key.removeprefix("sqlite_matrix_image_") for row in at.button
+                   if row.key and row.key.startswith("sqlite_matrix_image_")}
+        self.assertEqual(displayed,set(matrix["image_id"]))
+        self.assertTrue(any('sqlite-stage-neutral' in row.value and 'QA 결과는 Inspection' in row.value for row in at.markdown))
+        images=next(row.value for row in at.dataframe if "position_code" in row.value)
+        self.assertEqual(len(images),5)  # Existing image pagination stays separate.
+
+    def test_whole_and_analysis_empty_states_replace_same_chart(self):
+        import json
+        result=self.seed_registered_image()
+        at=self.detail(result["batch_id"])
+        key="sqlite_batch_donut_"+result["batch_id"]
+        self.assertEqual(len(at.get("plotly_chart")),1)
+        spec=json.loads(at.get("plotly_chart")[0].proto.spec)
+        self.assertEqual(spec["data"][0]["labels"],["DB 등록 이미지"])
+        self.assertEqual(spec["data"][0]["values"],[1])
+        self.assertNotIn("percent",spec["data"][0]["textinfo"])
+        self.assertTrue(any("성공률을 계산하지" in row.value for row in at.caption))
+        for mode in ("Metrology","Defect","Whole","Metrology","Whole"):
+            next(row for row in at.get("button_group") if row.key==key).set_value(mode).run()
+            self.assertFalse(at.exception)
+            self.assertEqual(len(at.get("plotly_chart")),1 if mode=="Whole" else 0)
+            if mode!="Whole":
+                expected="Metrology 결과는 Inspection & Analysis에서 조회합니다" if mode=="Metrology" else "Defect AI 결과는 Inspection & Analysis에서 조회합니다"
+                self.assertTrue(any(expected in row.value for row in at.info))
+
+    def test_empty_and_invalid_batch_do_not_fall_back_to_mock_results(self):
+        self.seed_registered_image()
+        provider=runtime_provider()
+        with closing(provider.connect(readonly=False)) as con,con:
+            con.execute("INSERT INTO upload_batches(batch_id,wafer_id,upload_mode,dataset_role,batch_status) "
+                        "VALUES ('EMPTY','W1','wafer_batch','development','registered')")
+        at=self.detail("EMPTY")
+        self.assertEqual(provider.batch_record("EMPTY")["image_count"],0)
+        self.assertEqual(len(at.get("plotly_chart")),0)
+        self.assertTrue(any("등록된 이미지가 없습니다" in row.value for row in at.info))
+        self.assertTrue(any("이미지 수" in row.value and "0장" in row.value for row in at.markdown))
+        for missing in ("NOT-A-BATCH",None):
+            at.session_state["selected_sqlite_batch_id"]=missing
+            at.run()
+            self.assertFalse(at.exception)
+            self.assertTrue(any("선택한 SQLite Batch가 없습니다" in row.value for row in at.info))
+            self.assertEqual(len(at.get("plotly_chart")),0)
+
+    def test_return_keeps_sqlite_source_batch_and_expanded_card_context(self):
+        result=self.seed_registered_image()
+        at=self.app()
+        at.button(key="dcc_expand_batches").click().run()
+        at.button(key="sqlite_batch_"+result["batch_id"]).click().run()
+        self.assertFalse(at.exception)
+        at.switch_page("pages/batch_detail.py")
+        next(row for row in at.button if row.label=="← Data Home").click().run()
+        self.assertFalse(at.exception)
+        self.assertEqual((at.session_state["data_control_selected_source"] if "data_control_selected_source" in at.session_state else "SQLite"),"SQLite")
+        self.assertEqual(at.session_state["selected_sqlite_batch_id"],result["batch_id"])
+        self.assertEqual(at.session_state["dcc_expanded_card"],"batches")
+
+    def test_real_repeatability_and_lighting_conditions_reach_detail_list(self):
+        self.seed_registered_image()
+        provider=runtime_provider()
+        for mode,pixel in (("repeatability",201),("lighting",202)):
+            bundle=provider.stage([{"filename":"w1_12_c.png","content":png_bytes(pixel=pixel)}])
+            try:
+                item=bundle["inputs"][0]
+                if mode=="repeatability":
+                    item["repeat_index"]=3
+                else:
+                    item["acquisition_condition"]={"condition_id":"DETAIL-LIGHT","magnification":40,
+                        "illumination_setting":"lm","auto_exposure":0}
+                metadata={"batch_id":"DETAIL-"+mode,"wafer_id":"W1","upload_mode":mode,
+                          "dataset_role":"evaluation","batch_status":"registered","process_run_id":"SEED-PROCESS"}
+                saved=provider.register(provider.preview(bundle["inputs"],metadata),approved=True)
+            finally:
+                bundle["files"].cleanup()
+            at=self.detail(saved["batch_id"])
+            frame=next(row.value for row in at.dataframe if "position_code" in row.value)
+            self.assertEqual(frame.iloc[0]["exposure_value"],60)
+            if mode=="repeatability":
+                self.assertEqual(frame.iloc[0]["repeat_index"],3)
+            else:
+                self.assertEqual(frame.iloc[0]["illumination_setting"],"lm")
+                self.assertEqual(frame.iloc[0]["magnification"],40)
+                self.assertEqual(frame.iloc[0]["auto_exposure"],0)
+
+
+    def test_image_record_uses_actual_id_and_batch_membership(self):
+        first=self.seed_registered_image()
+        other=self.seed_registered_image(pixel=81)
+        provider=runtime_provider()
+        provider.rename_batch(first["batch_id"],"실제 이름")
+        row=provider.image_record(first["image_ids"][0],batch_id=first["batch_id"])
+        self.assertEqual(row["image_id"],first["image_ids"][0])
+        self.assertEqual(row["batch_id"],first["batch_id"])
+        self.assertEqual(row["batch_name"],"실제 이름")
+        self.assertEqual(row["dataset_role"],"evaluation")
+        self.assertEqual(row["wafer_id"],"W1")
+        self.assertEqual(row["die_code"],"12")
+        self.assertEqual(row["position_code"],"c")
+        self.assertIsNone(provider.image_record(first["image_ids"][0],batch_id=other["batch_id"]))
+        self.assertIsNone(provider.image_record("MISSING"))
+        self.assertIsNone(provider.image_record(None))
+
+    def test_matrix_image_click_opens_native_original_and_returns_to_same_batch(self):
+        result=self.seed_registered_image()
+        provider=runtime_provider()
+        record=provider.image_record(result["image_ids"][0])
+        at=self.detail(result["batch_id"])
+        with patch("streamlit.image") as image:
+            at.button(key="sqlite_matrix_image_"+record["image_id"]).click().run()
+            self.assertFalse(at.exception)
+            self.assertEqual(at.title[0].value,"Image 상세")
+            image.assert_called_once_with(str(Path(record["storage_path"]).resolve()),width="stretch")
+        self.assertIn(record["image_id"],[row.value for row in at.code])
+        import xml.etree.ElementTree as ET
+        metadata={row.find("th").text:row.find("td").text for item in at.markdown
+                  if item.value.startswith('<table class="sqlite-image-kv"')
+                  for row in ET.fromstring(item.value).findall(".//tr")}
+        self.assertEqual(metadata["Batch ID"],result["batch_id"])
+        self.assertTrue(any("이 화면은 측정·추론을 실행하지 않습니다" in row.value for row in at.info))
+        at.switch_page("pages/image_detail.py")
+        next(row for row in at.button if row.label=="← Batch 상세로 돌아가기").click().run()
+        self.assertFalse(at.exception)
+        self.assertEqual(at.title[0].value,"Batch 상세")
+        self.assertEqual(at.session_state["selected_sqlite_batch_id"],result["batch_id"])
+
+    def test_direct_image_query_still_opens_real_record_and_rejects_invalid_identity(self):
+        from urllib.parse import urlsplit,parse_qs
+        result=self.seed_registered_image()
+        other=self.seed_registered_image(pixel=81)
+        at=self.detail(result["batch_id"])
+        frame=next(row.value for row in at.dataframe if "position_code" in row.value)
+        from dashboard.components.tables import image_detail_link
+        self.assertEqual(frame.iloc[0]["image_id"],result["image_ids"][0])
+        query=parse_qs(urlsplit(image_detail_link(result["image_ids"][0],result["batch_id"])).query)
+        self.assertEqual(query,{"image_id":result["image_ids"],"batch_id":[result["batch_id"]]})
+        self.assertTrue(image_detail_link(result["image_ids"][0],result["batch_id"]).startswith("./data-image-detail?"))
+        at.query_params["image_id"]=query["image_id"][0]
+        at.query_params["batch_id"]=query["batch_id"][0]
+        at.switch_page("pages/image_detail.py").run()
+        self.assertFalse(at.exception)
+        self.assertIn(result["image_ids"][0],[row.value for row in at.code])
+        at.query_params["batch_id"]=other["batch_id"]
+        at.run()
+        self.assertFalse(at.exception)
+        self.assertTrue(any("Image를 찾을 수 없습니다" in row.value for row in at.warning))
+        at.query_params["image_id"]="MISSING"
+        at.run()
+        self.assertFalse(at.exception)
+        self.assertTrue(any("Image를 찾을 수 없습니다" in row.value for row in at.warning))
+
+    def test_visual_matrix_records_only_truthful_statuses_and_back_button_is_in_header(self):
+        from dashboard.components.sqlite_batch_detail import metadata_stage
+        self.assertEqual(metadata_stage("filename_parsed")[:3],("neutral","—","파싱·저장"))
+        self.assertEqual(metadata_stage("manual_confirmed")[:3],("complete","✓","수동 확인"))
+        self.assertEqual(metadata_stage("needs_review")[0],"review")
+        self.assertEqual(metadata_stage("error")[0],"error")
+        self.assertEqual(metadata_stage("unknown")[0],"neutral")
+        result=self.seed_registered_image()
+        at=self.detail(result["batch_id"])
+        self.assertEqual(sum(row.label=="← Data Home" for row in at.button),1)
+        def find_header(node):
+            if str(getattr(getattr(node,"proto",None),"id","")).endswith("-sqlite_batch_header"):
+                return node
+            children=getattr(node,"children",{})
+            if isinstance(children,dict):
+                for child in children.values():
+                    found=find_header(child)
+                    if found is not None:
+                        return found
+            return None
+        header=find_header(at._tree)
+        self.assertTrue(any(row.label=="← Data Home" for row in header.button))
+        self.assertTrue(any("sqlite-stage-neutral" in row.value for row in at.markdown))
+        self.assertFalse(any(row.value.startswith('<span class="sqlite-stage sqlite-stage-complete"') for row in at.markdown))
+        statuses=next(row for row in at.get("button_group") if row.key.startswith("sqlite_batch_donut_"))
+        self.assertEqual(statuses.options,["Whole","Metrology","Defect"])
+        self.assertEqual(statuses.value,"Whole")
+
+
+    def test_image_id_cell_selection_uses_same_navigation_and_clears_on_return(self):
+        import streamlit as st
+        result=self.seed_registered_image()
+        at=self.detail(result["batch_id"])
+        table=next(row for row in at.dataframe if "position_code" in row.value)
+        key=table.key
+        actual_dataframe=st.dataframe
+        emitted=[]
+        def select_once(*args,**kwargs):
+            event=actual_dataframe(*args,**kwargs)
+            if kwargs.get("key")==key and not emitted:
+                emitted.append(True)
+                return {"selection":{"cells":[(0,"image_id")]}}
+            return event
+        # AppTest has no native cell-click helper. Inject only the documented
+        # frontend event at that boundary; the real renderer and navigation run.
+        with patch("streamlit.dataframe",side_effect=select_once):
+            at.run()
+        self.assertFalse(at.exception)
+        self.assertEqual(at.title[0].value,"Image 상세")
+        self.assertEqual(at.session_state["selected_sqlite_image_id"],result["image_ids"][0])
+        self.assertNotIn("sqlite_image_table_to_clear",at.session_state)
+        at.switch_page("pages/image_detail.py")
+        next(row for row in at.button if row.label=="← Batch 상세로 돌아가기").click().run()
+        self.assertFalse(at.exception)
+        self.assertEqual(at.title[0].value,"Batch 상세")
+        self.assertEqual(at.session_state["selected_sqlite_batch_id"],result["batch_id"])
+        selection=at.session_state[key]
+        self.assertEqual(selection["selection"]["cells"],[])
+
+    def test_grouped_image_metadata_matches_all_stored_fields_without_duplicates(self):
+        import xml.etree.ElementTree as ET
+        self.seed_registered_image()
+        provider=runtime_provider()
+        bundle=provider.stage([{"filename":"w1_12_c.png","content":png_bytes(pixel=211)}])
+        try:
+            bundle["inputs"][0]["acquisition_condition"]={"condition_id":"GROUP-LIGHT","magnification":20,
+                "illumination_setting":"lm","auto_exposure":0}
+            metadata={"batch_id":"GROUPED-IMAGE","wafer_id":"W1","upload_mode":"lighting",
+                      "dataset_role":"development","batch_status":"registered","process_run_id":"SEED-PROCESS"}
+            result=provider.register(provider.preview(bundle["inputs"],metadata),approved=True)
+        finally:
+            bundle["files"].cleanup()
+        provider.rename_batch(result["batch_id"],"사용자 촬영 이름")
+        record=provider.image_record(result["image_ids"][0])
+        at=self.detail(result["batch_id"])
+        at.button(key="sqlite_matrix_image_"+record["image_id"]).click().run()
+        self.assertFalse(at.exception)
+        tables=[ET.fromstring(row.value) for row in at.markdown if row.value.startswith('<table class="sqlite-image-kv"')]
+        self.assertEqual([len(table.findall(".//tr")) for table in tables],[8,8,5])
+        fields={row.find("th").text:row.find("td").text for table in tables for row in table.findall(".//tr")}
+        mapping={"원본 파일명":"original_filename","Batch ID":"batch_id","Batch 이름":"batch_name",
+                 "자동 Batch 번호":"automatic_batch_display_name","Wafer ID":"wafer_id","Die ID":"die_code",
+                 "Pattern Site":"position_code","Physical Site ID":"physical_site_id",
+                 "노광":"exposure_value","노광 단위":"exposure_unit","PEB (s)":"peb_temperature_c","배율":"magnification",
+                 "조명":"illumination_setting","Auto Exposure":"auto_exposure","반복 번호":"repeat_index",
+                 "촬영 일시":"captured_at","Upload Mode":"upload_mode","Dataset Role":"dataset_role",
+                 "등록 일시":"created_at","Metadata 상태":"metadata_status","SHA-256":"sha256"}
+        self.assertEqual(set(fields),set(mapping))
+        for label,key in mapping.items():
+            value=record[key]
+            expected="미기록" if value is None or value!=value or value=="" else str(value)
+            self.assertEqual(fields[label],expected,label)
+        self.assertEqual([row.value for row in at.code].count(record["image_id"]),1)
+        self.assertEqual(len(fields["SHA-256"]),64)
+        self.assertEqual(provider.image_count(result["batch_id"]),1)
 
 
 if __name__=="__main__":

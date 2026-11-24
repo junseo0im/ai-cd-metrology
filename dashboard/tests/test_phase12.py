@@ -2,6 +2,9 @@
 from pathlib import Path
 import sys
 import unittest
+import tempfile
+import os
+from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT))
 from streamlit.testing.v1 import AppTest
@@ -14,8 +17,17 @@ from dashboard.components.inspection_wafer import (
 
 
 class Phase12Tests(unittest.TestCase):
+    def setUp(self):
+        (ROOT/"dashboard/.tmp").mkdir(parents=True,exist_ok=True)
+        temporary=tempfile.TemporaryDirectory(dir=ROOT/"dashboard/.tmp",prefix="phase12_records_")
+        self.addCleanup(temporary.cleanup)
+        env=patch.dict(os.environ,{"IDA_RECORDS_DIR":temporary.name,"IDA_RECORDS_EDIT_ENABLED":"0"})
+        env.start();self.addCleanup(env.stop)
+
     def app(self):
-        at=AppTest.from_file(ROOT/"dashboard/app.py",default_timeout=20).run()
+        at=AppTest.from_file(ROOT/"dashboard/app.py",default_timeout=20)
+        at.session_state["_wafer_source"]="Mock"  # TASK18-B-6: operational Wafer Map is SQLite-only; this suite tests the preserved Mock UI explicitly.
+        at.run()
         self.assertEqual(len(at.exception),0)
         return at
 
@@ -29,12 +41,16 @@ class Phase12Tests(unittest.TestCase):
         for label in ("Data Control Center 열기","Inspection & Analysis 열기"):
             self.assertEqual(next(b for b in at.button if b.label==label).proto.type,"primary")
         self.assertFalse(any("테마: 우상단" in c.value for c in at.sidebar.caption))
-        self.assertTrue(any("MOCK DATA ONLY" in c.value for c in at.sidebar.caption))
-        self.click(at,"실험 환경 및 조건 열기")
+        self.assertFalse(any("MOCK DATA ONLY" in c.value for c in at.sidebar.caption))
+        self.assertTrue(any("SQLITE" in c.value for c in at.sidebar.caption))  # TASK18-B-8: Main Home KPIs are SQLite.
+        self.assertFalse(any(b.label=="실험 환경 및 조건 열기" for b in at.button))
+        at.switch_page(PAGE_SPECS["experiment_environment"][0]).run()
+        at.session_state["active_page_key"]="experiment_environment"
+        self.assertEqual(len(at.exception),0)
         self.assertEqual(at.title[0].value,"실험 환경 및 조건")
         self.assertEqual([t.label for t in at.tabs],["장비 사양","Wafer / Die / Pattern 구조","공정 조건",
-                         "Mask 설계 / 제작값","오차율 계산 기준(허용값)","Calibration"])
-        self.assertTrue(any(df.value.equals(data.calibration_records()) for df in at.dataframe))
+                         "Mask 설계 / 제작값","오차율 계산 기준(허용값)","Calibration","계측 방법"])
+        self.assertTrue(any("항목" in df.value and "X축 Calibration 값" in df.value["항목"].tolist() for df in at.dataframe))
         self.click(at,"Main Home으로 돌아가기")
         self.assertEqual(at.session_state["active_page_key"],"main_home")
 
@@ -82,15 +98,14 @@ class Phase12Tests(unittest.TestCase):
     def test_plot_regions_circle_and_no_criticality_dimming(self):
         default=build_inspection_wafer("BATCH-DEMO-060")
         selected=build_inspection_wafer("BATCH-DEMO-060","22","lt")
-        self.assertEqual(len(default.data),6)
-        self.assertEqual(sum(len(t.x) for t in default.data),72)
+        self.assertEqual(sum(len(t.x) for t in default.data),24)
         self.assertEqual(len(default.layout.annotations),24)
         self.assertEqual(default.layout.shapes[0].type,"circle")
-        center_regions=[r for t in default.data for r in t.customdata if r[1]=="c"]
-        self.assertEqual(len(center_regions),24)
+        self.assertEqual({r[0] for t in default.data for r in t.customdata},
+                         {f"{row}{col}" for row in range(1,4) for col in range(1,9)})
         self.assertEqual(len({x for t in default.data for x in t.x}),8)
         self.assertEqual(len({round(base+height/2,8) for t in default.data
-                             for base,height,r in zip(t.base,t.y,t.customdata) if r[1]=="c"}),3)
+                             for base,height in zip(t.base,t.y)}),3)
         for rect in default.layout.shapes[1:]:
             for x in (rect.x0,rect.x1):
                 for y in (rect.y0,rect.y1):

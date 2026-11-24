@@ -28,7 +28,7 @@ p { line-height:1.5; }
 .brand-row { display:flex; align-items:center; gap:12px; min-height:42px; }
 .ida-mark { display:inline-flex; align-items:center; justify-content:center; width:42px; height:42px;
  border-radius:11px; background:var(--ida-accent); color:var(--ida-on-accent); font-size:16px; font-weight:800; }
-.ida-brand { font-weight:760; font-size:18px; white-space:nowrap; }
+.ida-brand { font-weight:760; font-size:22px; white-space:nowrap; }
 .ida-separator { color:var(--ida-border); font-size:24px; font-weight:300; }
 .ida-page { color:var(--ida-muted); font-size:14px; }
 .header-context { display:flex; align-items:center; gap:12px; color:var(--ida-muted); font-size:12px; }
@@ -38,6 +38,13 @@ p { line-height:1.5; }
 .st-key-page_heading { padding:0; }
 .st-key-page_heading [data-testid="stVerticalBlock"] { gap:.12rem; }
 .st-key-page_heading h1 { margin:0!important; padding-bottom:.1rem!important; }
+.st-key-page_heading_inline { padding:0; }
+.st-key-page_heading_inline h1 { margin:0!important; padding:0 0 .1rem 0!important; font-size:1.7rem!important; }
+.st-key-page_heading_inline [data-testid="stCaptionContainer"] { padding-bottom:.35rem; }
+[class*="st-key-card_head_"] { gap:.2rem; }
+[class*="st-key-card_head_"] h3 { margin:0!important; padding:0!important; font-size:1.05rem!important; white-space:nowrap; }
+[class*="st-key-card_head_"] [data-testid="stCaptionContainer"] { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+[class*="st-key-dcc_expand_"] button { padding:.1rem .45rem!important; min-height:1.8rem!important; }
 .nav-current { background:var(--ida-soft); border-left:3px solid var(--ida-accent); border-radius:8px;
  padding:10px 12px; color:var(--ida-text); font-size:13px; margin:8px 0; }
 .nav-current small { color:var(--ida-muted); font-size:12px; }
@@ -68,10 +75,10 @@ p { line-height:1.5; }
 .batch-table a { color:var(--ida-accent); font-weight:650; text-decoration:underline; text-underline-offset:3px; }
 .batch-table a:focus-visible { outline:2px solid var(--ida-accent); outline-offset:4px; }
 /* Batch rows grow with wrapped text; never squeeze two captions into a fixed row. */
-.st-key-batch_table { border:1px solid var(--ida-border); border-radius:9px; padding:6px 10px; }
-.st-key-batch_table [data-testid="stHorizontalBlock"] { border-bottom:1px solid var(--ida-border); padding:5px 0; align-items:center; }
-.st-key-batch_table p { font-size:12px; line-height:1.5; margin:0; overflow-wrap:anywhere; }
-.st-key-batch_table [data-testid="stButton"] button { padding:4px 0; border:0; color:var(--ida-accent); text-decoration:underline; }
+.st-key-batch_table,.st-key-wafer_batch_table { border:1px solid var(--ida-border); border-radius:9px; padding:6px 10px; }
+.st-key-batch_table [data-testid="stHorizontalBlock"],.st-key-wafer_batch_table [data-testid="stHorizontalBlock"] { border-bottom:1px solid var(--ida-border); padding:5px 0; align-items:center; }
+.st-key-batch_table p,.st-key-wafer_batch_table p { font-size:12px; line-height:1.5; margin:0; overflow-wrap:anywhere; }
+.st-key-batch_table [data-testid="stButton"] button,.st-key-wafer_batch_table [data-testid="stButton"] button { padding:4px 0; border:0; color:var(--ida-accent); text-decoration:underline; }
 [data-testid="stBaseButton-primary"], [data-testid="stBaseButton-primary"] p { color:var(--ida-on-accent); }
 [data-testid="stBaseButton-primaryFormSubmit"], [data-testid="stBaseButton-primaryFormSubmit"] p { color:var(--ida-on-accent); }
 .image-identity { color:var(--ida-muted); font-size:12px; }
@@ -116,3 +123,282 @@ p { line-height:1.5; }
  opacity:1!important;
 }
 .st-key-card_data_input [data-testid="stBaseButton-primary"]:disabled p { color:inherit!important; }
+
+/* SQLite Batch/Image detail only. No shared Header or Data Control redesign. */
+.st-key-sqlite_batch_summary [data-testid="stVerticalBlockBorderWrapper"],
+.st-key-sqlite_wafer_summary [data-testid="stVerticalBlockBorderWrapper"],
+.st-key-sqlite_batch_identity,.st-key-sqlite_batch_metadata {
+ background:var(--ida-card); border-color:var(--ida-border)!important; border-radius:12px;
+}
+.sqlite-info-label { color:var(--ida-muted); font-size:12px; margin-bottom:4px; }
+.sqlite-info-value { color:var(--ida-text); font-size:17px; font-weight:650; line-height:1.45; overflow-wrap:anywhere; margin-bottom:9px; }
+.st-key-sqlite_batch_identity pre,.st-key-sqlite_image_metadata pre { white-space:pre-wrap; overflow-wrap:anywhere; }
+.st-key-sqlite_batch_matrix_rows [data-testid="stHorizontalBlock"] { align-items:center; }
+.st-key-sqlite_batch_matrix_rows [data-testid="stButton"] button { min-height:36px; padding:4px; }
+.st-key-sqlite_batch_matrix_rows [data-testid="stButton"] button p { font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.st-key-sqlite_batch_matrix_rows [data-testid="stMarkdownContainer"] p { font-size:11px; }
+.sqlite-stage { display:flex; align-items:center; justify-content:center; gap:5px; min-height:36px; padding:5px; box-sizing:border-box; border-radius:8px; font-size:11px; line-height:1.2; white-space:nowrap; }
+.sqlite-stage-neutral { background:light-dark(#e6edf4,#2b394d); color:light-dark(#40546e,#d3dfed); }
+.sqlite-stage-complete { background:light-dark(#e0f3e8,#1b4031); color:light-dark(#216841,#aeedca); }
+.sqlite-stage-review { background:light-dark(#fff0db,#513b20); color:light-dark(#85520d,#ffd79d); }
+.sqlite-stage-error { background:light-dark(#fbe4e6,#4f2630); color:light-dark(#a3293c,#ffb6c4); }
+.st-key-sqlite_image_metadata [data-testid="stText"] { overflow-wrap:anywhere; white-space:pre-wrap; }
+
+/* Image detail metadata only: complete, selectable values without table overflow. */
+.st-key-sqlite_image_metadata .sqlite-image-kv {
+ width:100%; table-layout:fixed; border-collapse:collapse; margin:0 0 14px;
+ color:var(--ida-text); font-size:13px;
+}
+.st-key-sqlite_image_metadata .sqlite-image-kv th,
+.st-key-sqlite_image_metadata .sqlite-image-kv td {
+ border:1px solid var(--ida-border); padding:8px 10px; text-align:left;
+ vertical-align:top; white-space:pre-wrap; overflow-wrap:anywhere; user-select:text;
+}
+.st-key-sqlite_image_metadata .sqlite-image-kv th {
+ width:32%; background:var(--ida-soft); color:var(--ida-muted); font-weight:650;
+}
+.st-key-sqlite_image_metadata .sqlite-image-kv td { background:var(--ida-card); }
+
+/* Wafer navigation only: title is a same-tab link; future severity legend. */
+/* I&A preview only: same typography/color as the neighboring h3 title. */
+.st-key-ia_wafer_title button,
+.st-key-ia_wafer_title button p {
+ color:var(--ida-text); font-size:1.05rem!important; font-weight:600;
+ line-height:1.2; letter-spacing:-.02em; text-decoration:none;
+}
+.st-key-ia_wafer_title button { padding:0; }
+.st-key-ia_wafer_title button:hover, .st-key-ia_wafer_title button:hover p { text-decoration:underline; text-underline-offset:4px; }
+.st-key-ia_wafer_title button:focus-visible { outline:2px solid var(--ida-accent); outline-offset:3px; }
+/* Reclaim spacing inside this card to fit the larger circle, without changing its size. */
+.st-key-card_ia_map { gap:5px!important; }
+.st-key-card_ia_map [data-testid="stCaptionContainer"] { margin-bottom:0!important; }
+.st-key-card_ia_map [data-testid="stCaptionContainer"] p { margin-bottom:0; }
+/* The first row only: native popover and select controls share one visual treatment. */
+.st-key-card_ia_map [data-testid="stHorizontalBlock"]:has(.st-key-ia_wafer_title)
+ :is([data-testid="stSelectbox"] [role="group"],[data-testid="stPopoverButton"]) {
+ height:40px; min-height:40px; box-sizing:border-box;
+ border:1px solid light-dark(#7589a3,#95aac8)!important; border-radius:8px;
+ padding:0 10px; background:var(--ida-card); color:var(--ida-text);
+}
+.st-key-card_ia_map [data-testid="stHorizontalBlock"]:has(.st-key-ia_wafer_title) [data-testid="stPopover"],
+.st-key-card_ia_map [data-testid="stHorizontalBlock"]:has(.st-key-ia_wafer_title) [data-testid="stPopoverButton"] {
+ width:100%;
+}
+.st-key-card_ia_map [data-testid="stHorizontalBlock"]:has(.st-key-ia_wafer_title) [data-testid="stPopoverButton"] > div {
+ width:100%; justify-content:space-between; gap:8px;
+}
+.st-key-card_ia_map [data-testid="stHorizontalBlock"]:has(.st-key-ia_wafer_title)
+ :is([data-testid="stSelectbox"] input,[data-testid="stPopoverButton"] p) {
+ padding:0; margin:0; min-width:0; color:var(--ida-text); font-size:14px; line-height:20px;
+}
+.st-key-card_ia_map [data-testid="stHorizontalBlock"]:has(.st-key-ia_wafer_title) [data-testid="stSelectbox"] [role="group"] > button {
+ width:20px; min-width:20px; padding:0; margin:0; color:var(--ida-text);
+}
+.st-key-card_ia_map [data-testid="stHorizontalBlock"]:has(.st-key-ia_wafer_title) [data-testid="stIconMaterial"] {
+ font-size:20px; width:20px; height:20px;
+}
+.st-key-card_ia_map [data-testid="stHorizontalBlock"]:has(.st-key-ia_wafer_title)
+ :is([data-testid="stSelectbox"] [role="group"]:focus-within,[data-testid="stPopoverButton"]:focus-visible) {
+ outline:2px solid var(--ida-accent); outline-offset:2px;
+}
+.wafer-legend { display:flex; flex-wrap:wrap; gap:8px 12px; color:var(--ida-text); font-size:12px; }
+.wafer-legend-item { display:inline-flex; gap:5px; align-items:center; }
+.wafer-legend-item i { width:10px; height:10px; display:inline-block; border-radius:2px; }
+.st-key-wafer_browser_site pre,.st-key-wafer_browser_site [data-testid="stText"] { white-space:pre-wrap; overflow-wrap:anywhere; }
+
+/* Keep the Die popup within the preview card on narrower desktop screens. */
+.st-key-wafer_die_popover_content { width:260px!important; max-width:calc(100vw - 48px); }
+.st-key-wafer_die_popover_content [data-testid="stVerticalBlock"] { gap:6px; }
+.st-key-wafer_die_popover_content p { font-size:12px; line-height:1.4; margin-bottom:0; }
+
+/* Keep only the compact Wafer control row horizontal when native columns stack. */
+@media (max-width:800px) {
+ .st-key-card_ia_map [data-testid="stHorizontalBlock"]:has(.st-key-ia_wafer_title) { flex-direction:row!important; flex-wrap:nowrap!important; gap:8px; }
+ .st-key-card_ia_map [data-testid="stHorizontalBlock"]:has(.st-key-ia_wafer_title) > [data-testid="stColumn"] { flex:1 1 0!important; min-width:0!important; width:0!important; }
+}
+
+/* I&A-only six-level legend; preserve the enlarged circle and existing header. */
+.st-key-card_ia_map { container-type:inline-size; }
+.wafer-legend-preview { flex-direction:column; flex-wrap:nowrap; align-items:flex-start; gap:7px; width:max-content; max-width:100%; margin-inline:auto; }
+.wafer-legend-preview small { color:var(--ida-muted); font-size:11px; }
+.wafer-legend-preview .wafer-legend-item { white-space:nowrap; line-height:18px; }
+.wafer-legend-preview .wafer-legend-item i { flex:none; }
+/* Keep the existing Die popover over the Map area, clear of the new legend. */
+[data-testid="stPopoverBody"]:has(.st-key-wafer_die_popover_content) { translate:-135px 0; }
+@container (max-width:500px) {
+ .st-key-ia_wafer_visual > [data-testid="stHorizontalBlock"] { flex-direction:column!important; gap:10px; }
+ .st-key-ia_wafer_visual > [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] { flex:1 1 auto!important; width:100%!important; min-width:100%!important; }
+}
+@media (min-width:801px) and (max-width:1280px) {
+ [data-testid="stPopoverBody"]:has(.st-key-wafer_die_popover_content) { translate:-100px 0; }
+}
+@media (max-width:480px) {
+ [data-testid="stPopoverBody"]:has(.st-key-wafer_die_popover_content) { translate:-95px 0; }
+}
+
+/* I&A SQLite image column only; neighboring result tables keep their layout. */
+.st-key-ia_sqlite_selection { max-height:310px; overflow-y:auto; overflow-x:hidden; gap:5px!important; }
+.st-key-ia_sqlite_selection [data-testid="stCaptionContainer"] { margin-bottom:0!important; }
+.st-key-ia_sqlite_selection [data-testid="stCaptionContainer"] p { margin-bottom:0; }
+.st-key-ia_sqlite_selection [data-testid="stText"] { white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; }
+.st-key-ia_sqlite_original img { width:auto!important; height:auto!important; max-width:100%; max-height:160px; object-fit:contain; display:block; margin-inline:auto; }
+.st-key-ia_sqlite_detail button { min-height:28px; padding:2px 8px; }
+
+/* TASK18-B-9 / 9.1 Main Home */
+.st-key-home_center { min-height:calc(100vh - 13rem); justify-content:center; gap:1.4rem; }
+.st-key-card_home_data,.st-key-card_home_analysis { min-height:250px; justify-content:center; gap:.5rem; padding:1.5rem 1.6rem!important; }
+/* TASK18-B-9.3: button follows the description (~24px) instead of being pushed to the bottom (margin-top:auto removed). */
+.st-key-card_home_data > :last-child,.st-key-card_home_analysis > :last-child { padding-top:31px; }
+.st-key-card_home_data [data-testid="stBaseButton-primary"],.st-key-card_home_analysis [data-testid="stBaseButton-primary"] { min-height:2.8rem; }
+.ws-title { display:flex; flex-wrap:wrap; align-items:baseline; gap:.6rem; font-size:1.45rem; line-height:1.35; }
+.ws-name { font-weight:800; letter-spacing:.06em; color:var(--ida-accent); }
+.ws-sep { color:var(--ida-muted); font-weight:300; margin-right:.6rem; }
+.ws-feature { font-weight:500; color:var(--ida-text); white-space:nowrap; }
+.ws-desc { font-size:1.02rem; color:var(--ida-muted); margin-top:.45rem; }
+/* Equal Workspace card heights at every width: cards stretch to the taller column. */
+.st-key-home_center > [data-testid="stHorizontalBlock"]:first-child { align-items:stretch; }
+.st-key-home_center > [data-testid="stHorizontalBlock"]:first-child > [data-testid="stColumn"] > [data-testid="stVerticalBlock"] { height:100%; }
+.st-key-home_center > [data-testid="stHorizontalBlock"]:first-child > [data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [data-testid="stLayoutWrapper"],
+.st-key-card_home_data,.st-key-card_home_analysis { flex:1 1 auto; }
+/* TASK18-B-9.2 Main Home only: Workspace column gap (was gap="large" = 60px) and platform title +20%. */
+.st-key-home_center [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] .st-key-card_home_data) { column-gap:22px; }
+@media (max-width:1400px) { .stApp:has(.st-key-home_center) .ida-brand { font-size:19.2px; } }
+@media (max-width:1000px) { .stApp:has(.st-key-home_center) .ida-brand { font-size:16px; } }  /* Narrow: keep one header row. */
+/* TASK18-B-9.3: sidebar brand title only (the sidebar's single h3, "IDA Workspace"). */
+[data-testid="stSidebar"] h3 { font-size:18px!important; margin-bottom:-3px; }
+/* TASK18-B-9.3: equal Workspace card heights when one title wraps (stretch both columns' card wrappers). */
+.st-key-home_center [data-testid="stHorizontalBlock"]:has(.st-key-card_home_data) > [data-testid="stColumn"] > [data-testid="stVerticalBlock"] { height:100%; }
+.st-key-home_center [data-testid="stHorizontalBlock"]:has(.st-key-card_home_data) > [data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [data-testid="stLayoutWrapper"] { flex:1 1 auto; display:flex; }
+.st-key-home_center [data-testid="stHorizontalBlock"]:has(.st-key-card_home_data) .st-key-card_home_data,
+.st-key-home_center [data-testid="stHorizontalBlock"]:has(.st-key-card_home_data) .st-key-card_home_analysis { flex:1 1 auto; }
+/* TASK18-B-10A: DCC top cards - compact Batch rows and pager (Batch card only). */
+.st-key-card_data_batches .st-key-batch_table,.st-key-wafer_batch_table { gap:.15rem; }
+.st-key-card_data_batches .st-key-batch_table [data-testid="stHorizontalBlock"],.st-key-wafer_batch_table [data-testid="stHorizontalBlock"] { min-height:0; }
+.st-key-card_data_batches .st-key-batch_table button,.st-key-wafer_batch_table button { min-height:1.9rem; padding-top:0; padding-bottom:0; }
+.st-key-sqlite_review_counts { flex-wrap:wrap; row-gap:.1rem; }
+
+/* TASK18-B-11: Data Control bottom cards — small KPI tiles, chips and A–E group labels (existing tokens only). */
+.dcc-kpi-wrap { container-type:inline-size; }
+.dcc-kpis { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; margin:2px 0 6px; }
+@container (min-width:400px) { .dcc-kpis { grid-template-columns:repeat(4,minmax(0,1fr)); } }
+.dcc-kpi { min-width:0; border:1px solid var(--ida-border); background:var(--ida-soft);
+ border-left:3px solid var(--ida-border); border-radius:9px; padding:6px 9px; }
+.dcc-kpi small { display:block; color:var(--ida-muted); font-size:11.5px; line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dcc-kpi b { display:block; color:var(--ida-text); font-size:18px; font-weight:700; line-height:1.3; overflow-wrap:anywhere; }
+.dcc-kpis-compact .dcc-kpi { padding:4px 8px; } .dcc-kpis-compact .dcc-kpi b { font-size:15px; }
+.dcc-kpi-ready { border-left-color:light-dark(#216841,#aeedca); }
+.dcc-kpi-review { border-left-color:light-dark(#85520d,#ffd79d); }
+.dcc-kpi-blocked { border-left-color:light-dark(#a3293c,#ffb6c4); }
+.dcc-kpi-accent { border-left-color:var(--ida-accent); }
+.dcc-chips { display:flex; flex-wrap:wrap; align-items:center; gap:5px; margin:0 0 6px; font-size:12px; }
+.dcc-chip-label { color:var(--ida-muted); font-size:11.5px; margin-right:2px; }
+.dcc-chip { border:1px solid var(--ida-border); border-radius:999px; padding:1px 8px; color:var(--ida-text); background:var(--ida-card); white-space:nowrap; }
+.dcc-chip-warn { color:light-dark(#a3293c,#ffb6c4); border-color:light-dark(#a3293c,#ffb6c4); }
+.dcc-chip-note { color:var(--ida-muted); font-size:11.5px; }
+.dcc-group-title { font-size:14px; font-weight:700; color:var(--ida-text); margin:0 0 2px; }
+.dcc-group-title span { color:var(--ida-muted); font-weight:500; margin:0 4px; }
+.dcc-field-label { color:var(--ida-muted); font-size:11.5px; font-weight:650; letter-spacing:.04em; margin:2px 0 6px; }
+.st-key-dcc_setting_scope { border-left:1px solid var(--ida-border); padding-left:10px; }
+.dcc-target-name { color:var(--ida-text); font-weight:650; font-size:14px; overflow-wrap:anywhere; margin:2px 0 0; }
+.dcc-status-line { color:var(--ida-text); font-size:13px; overflow-wrap:anywhere; }
+.st-key-global_analysis_status { background:var(--ida-soft); border:1px solid var(--ida-border); border-radius:9px; padding:4px 10px; margin-top:4px; }
+
+/* TASK18-B-11.1: analysis-card selects (native Streamlit selectbox/multiselect) look like inputs before AND
+   after a choice: same border/background/height; only focus uses the accent. Same tokens as the input card. */
+.st-key-card_data_analysis [data-testid="stSelectbox"] [role="group"],
+.st-key-card_data_analysis [data-testid="stMultiSelect"] [role="group"] {
+ border:1px solid light-dark(#7589a3,#95aac8)!important;
+ background:var(--ida-card)!important;
+ color:var(--ida-text)!important;
+ border-radius:7px; min-height:38px; box-sizing:border-box;
+}
+.st-key-card_data_analysis [data-testid="stSelectbox"] input { color:var(--ida-text); background:transparent; text-overflow:ellipsis; }
+.st-key-card_data_analysis [data-testid="stSelectbox"] input::placeholder,
+.st-key-card_data_analysis [data-testid="stMultiSelect"] input::placeholder { color:var(--ida-muted)!important; opacity:1; font-style:italic; }
+.st-key-card_data_analysis [data-testid="stSelectbox"] [role="group"]:focus-within,
+.st-key-card_data_analysis [data-testid="stMultiSelect"] [role="group"]:focus-within {
+ outline:2px solid var(--ida-accent); outline-offset:1px;
+}
+.st-key-dcc_duplicate_ids pre, .st-key-dcc_duplicate_ids code { white-space:pre-wrap!important; overflow-wrap:anywhere; word-break:break-all; font-size:12px; margin:0; }
+
+/* TASK18-B-12A.1: 전체 Dataset filter selects only — visible border/background at rest, on hover and after blur;
+   focus keeps the accent outline. Native Streamlit 1.64 selectbox (React Aria [role=group]); no other page affected. */
+.st-key-card_dataset_filters [data-testid="stSelectbox"] [role="group"] {
+ border:1px solid light-dark(#7589a3,#95aac8)!important;
+ background:var(--ida-card)!important;
+ color:var(--ida-text)!important;
+ border-radius:7px; min-height:38px; box-sizing:border-box;
+}
+.st-key-card_dataset_filters [data-testid="stSelectbox"] [role="group"]:hover { border-color:light-dark(#526780,#b7c8df)!important; }
+.st-key-card_dataset_filters [data-testid="stSelectbox"] [role="group"]:focus-within {
+ border-color:var(--ida-accent)!important; outline:2px solid var(--ida-accent); outline-offset:1px;
+}
+.st-key-card_dataset_filters [data-testid="stSelectbox"] input { color:var(--ida-text); background:transparent; text-overflow:ellipsis; }
+
+/* TASK18-B-12A.2: 영구 삭제 confirmation input only — same look as the Dataset filters (rest/hover/blur visible). */
+.st-key-ds_confirm [data-testid="stTextInputRootElement"] {
+ border:1px solid light-dark(#7589a3,#95aac8)!important;
+ background:var(--ida-card)!important;
+ border-radius:7px; min-height:38px; box-sizing:border-box;
+}
+.st-key-ds_confirm [data-testid="stTextInputRootElement"]:hover { border-color:light-dark(#526780,#b7c8df)!important; }
+.st-key-ds_confirm [data-testid="stTextInputRootElement"]:focus-within {
+ border-color:var(--ida-accent)!important; outline:2px solid var(--ida-accent); outline-offset:1px;
+}
+.st-key-ds_confirm input { color:var(--ida-text); background:transparent; }
+.st-key-ds_confirm input::placeholder { color:var(--ida-muted)!important; opacity:1; }
+.st-key-ds_cancel button,.st-key-ds_final button { min-height:38px; }
+.st-key-ds_final [data-testid="stBaseButton-primary"]:disabled {
+ background:light-dark(#e6edf5,#34465d)!important; color:light-dark(#526780,#c6d5e8)!important;
+ border:1px solid light-dark(#7589a3,#95aac8)!important; opacity:1!important;
+}
+.st-key-ds_final [data-testid="stBaseButton-primary"]:disabled p { color:inherit!important; }
+
+/* TASK18-B-13A: I&A 선폭/오차율 — three graph cards side by side; wrap to 2+1 / 1 column when narrower.
+   Layout only: cards reuse the card tokens; Plotly keeps its own toolbar (zoom/download). */
+[data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] :is(.st-key-ia_graph_exposure_width,.st-key-ia_graph_peb_width)) { flex-wrap:wrap!important; row-gap:.6rem; }
+[data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] :is(.st-key-ia_graph_exposure_width,.st-key-ia_graph_peb_width)) > [data-testid="stColumn"] {
+ flex:1 1 320px!important; min-width:min(320px,100%)!important; width:auto!important;
+}
+.ia-graph-title { display:block; font-weight:700; font-size:14px; color:var(--ida-text); line-height:1.35; }
+.ia-graph-sub { display:block; font-size:12px; color:var(--ida-muted); line-height:1.35; overflow-wrap:anywhere; }
+[class*="st-key-ia_graph_"] { background:var(--ida-card); border-color:var(--ida-border)!important; border-radius:12px; padding:.55rem .7rem!important; gap:.15rem!important; }
+[class*="st-key-ia_graph_"] [data-testid="stCaptionContainer"] { margin-bottom:0; }
+[class*="st-key-ia_graph_"] [data-testid="stRadio"] label p { font-size:12px; }
+.st-key-ia_trend_head { gap:.5rem; }
+.st-key-ia_trend_head h3 { margin:0!important; padding:0!important; white-space:nowrap; }
+.st-key-ia_trend_head [data-testid="stCaptionContainer"] { overflow-wrap:anywhere; }
+:is(.st-key-ia_controls_exposure,.st-key-ia_controls_peb) [data-testid="stCaptionContainer"] { padding-bottom:.45rem; }
+.ia-graph-help { display:inline-flex; align-items:center; justify-content:center; width:15px; height:15px; margin-left:6px;
+ border:1px solid var(--ida-muted); border-radius:50%; color:var(--ida-muted); font-size:10px; font-weight:600; cursor:help; vertical-align:1px; }
+
+/* TASK18-B-14B: I&A Wafer/Image tab — Map 50% · two images 50%; both cards keep their size before a selection. */
+.st-key-card_ia_map,.st-key-card_ia_results { min-height:640px; }
+.st-key-card_ia_results { container-type:inline-size; }
+.st-key-ia_sqlite_selection { max-height:none!important; overflow:visible!important; }
+.st-key-ia_image_pair [data-testid="stColumn"] { min-height:180px; background:var(--ida-soft); border:1px solid var(--ida-border); border-radius:10px; padding:6px; }
+.st-key-ia_image_pair img,.st-key-card_ia_results .st-key-ia_image_pair img,.st-key-ia_sqlite_original img {
+ height:auto!important; width:100%!important; max-height:440px!important; object-fit:contain; display:block; margin-inline:auto; }
+/* TASK18-B-15: 선폭 | 결함 Overlay stay side by side (original below); stack only on very narrow cards. */
+.st-key-ia_original_row [data-testid="stColumn"]:first-child { background:var(--ida-soft); border:1px solid var(--ida-border); border-radius:10px; padding:6px; }
+.st-key-ia_original_row img { height:auto!important; width:100%!important; max-height:300px!important; object-fit:contain; }
+@container (max-width:420px) {
+ .st-key-ia_image_pair [data-testid="stHorizontalBlock"] { flex-direction:column!important; }
+ .st-key-ia_image_pair [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] { width:100%!important; flex:1 1 auto!important; }
+}
+.ia-image-label { font-size:12px; font-weight:700; color:var(--ida-muted); letter-spacing:.04em; }
+.st-key-ia_image_controls { flex-wrap:wrap; row-gap:.3rem; }
+.ia-die-summary { font-size:13px; color:var(--ida-text); background:var(--ida-soft); border:1px solid var(--ida-border);
+ border-radius:8px; padding:6px 10px; overflow-wrap:anywhere; margin-bottom:8px; }
+/* Wafer Map detail: the image comes first; controls live in a collapsed menu. */
+.st-key-wafer_detail_image img { max-height:520px; object-fit:contain; }
+
+/* TASK18-B-16: image summary (left) | Die summary (right); narrow card -> Die table above the image table. */
+@container (max-width:760px) {
+ .st-key-ia_summary_pair [data-testid="stHorizontalBlock"] { flex-direction:column-reverse!important; }
+ .st-key-ia_summary_pair [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] { width:100%!important; flex:1 1 auto!important; }
+}
+
+/* TASK18-B-17: the '웨피' host takes no layout space (the character itself is position:fixed). */
+.st-key-waepi_host { position:absolute!important; width:0!important; height:0!important; overflow:visible!important;
+ margin:0!important; padding:0!important; }

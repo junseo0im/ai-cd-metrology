@@ -48,14 +48,22 @@ def _check_connection(connection: sqlite3.Connection, *, allow_transaction: bool
         raise ImageRegistrationError("Commit fixture/caller work before registering an image")
     if connection.execute("PRAGMA foreign_keys").fetchone()[0] != 1:
         raise ImageRegistrationError("foreign_keys must be ON; use connect_database")
-    if connection.execute("PRAGMA user_version").fetchone()[0] not in (SCHEMA_VERSION, 2):
-        raise ImageRegistrationError("An initialized schema version 1 or 2 is required")
+    version = connection.execute("PRAGMA user_version").fetchone()[0]
+    if version not in (SCHEMA_VERSION, 2, 3, 4, 5, 6):
+        raise ImageRegistrationError("An initialized schema version 1, 2, 3, 4, 5 or 6 is required")
+    if version in (4, 5, 6):
+        from database.migrate_v5 import validate_analysis_schema
+        validate_analysis_schema(connection)
 
 
 def get_image(connection: sqlite3.Connection, image_id: str) -> dict | None:
-    """Read stored image fields plus Wafer/Die/Position identity; no inferred labels."""
+    """Read stored image fields plus Wafer/Die/Position identity; no inferred labels.
+
+    wafer_id is the image's OWN Wafer (its site's Die). In v1-v5 it always equals the Batch Wafer
+    (trigger-enforced); in v6 a Batch may hold several Wafers, so the Batch Wafer is never used.
+    """
     cursor = connection.execute(
-        "SELECT i.*, b.wafer_id, d.die_id, d.die_code, d.row_index, d.column_index, p.position_code "
+        "SELECT i.*, d.wafer_id, d.die_id, d.die_code, d.row_index, d.column_index, p.position_code "
         "FROM images i JOIN upload_batches b ON b.batch_id=i.batch_id "
         "JOIN pattern_sites p ON p.physical_site_id=i.physical_site_id "
         "JOIN dies d ON d.die_id=p.die_id WHERE i.image_id=?", (image_id,),
@@ -117,7 +125,11 @@ def register_image(
         ).fetchone()
         if site is None:
             raise ImageRegistrationError(f"Unknown physical_site_id: {physical_site_id}")
-        if batch[0] != site[0]:
+        if connection.execute("PRAGMA user_version").fetchone()[0] >= 6:
+            if connection.execute("SELECT 1 FROM batch_wafers WHERE batch_id=? AND wafer_id=?",
+                                  (batch_id, site[0])).fetchone() is None:
+                raise ImageRegistrationError("Image Wafer must be a member Wafer of its Batch")
+        elif batch[0] != site[0]:
             raise ImageRegistrationError("Batch and site must belong to the same wafer")
         expected = (parsed.wafer_id, parsed.die_code, parsed.row_index,
                     parsed.column_index, parsed.position_code)

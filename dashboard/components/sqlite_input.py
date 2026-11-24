@@ -9,15 +9,15 @@ import sqlite3
 import uuid
 
 import streamlit as st
+from dashboard.notifications import notify
 
 from dashboard import data_provider as mock
 from dashboard.sqlite_provider import runtime_provider,sync_uploads,reviewed_inputs
-from dashboard.components.tables import batch_table
+from dashboard.components.tables import batch_table,open_image_detail,open_wafer_detail
 from dashboard.components.data_overview import accumulation_overview,processing_progress
-from dashboard.components.pipeline import processing_pipeline,image_status_tiles
 from database.batch_registry import DUPLICATE_ACTIONS
 from database.batch_names import notes_with_batch_name
-from database.filename_parser import FilenameParseError,parse_filename
+from database.filename_parser import FilenameParseError,parse_filename,validate_metadata
 from database.upload_storage import MAX_IMAGES
 
 MODE_CODES={"Wafer Batch":"wafer_batch","Repeatability":"repeatability",
@@ -40,9 +40,16 @@ def _short_name(value):
 def issue_guidance(message):
     """Present remedies without changing any backend validation rule or result."""
     text=str(message)
+    if "ZIP 이름 Wafer" in text:
+        return text  # ZIP name/content conflict: shown as-is (never auto-resolved).
+    per_wafer=re.match(r"(W[0-9]+): ",text)
+    if per_wafer and ("exposure_value" in text or "process_run" in text):
+        return (f"{per_wafer.group(1)} 노광 조건 미입력 · Wafer별 공정조건에 실제 노광 수치를 입력해야 등록할 수 있습니다.")
+    if "is not one of this Batch's Wafers" in text:
+        return "Batch Wafer 목록에 없는 Wafer의 이미지입니다. 파일명·이미지별 Wafer ID를 확인하세요."
     remedies=(
         (("Wafer mismatch","wafer_id mismatch","same wafer"),"공통 Wafer와 파일명/개별 Wafer가 다릅니다. 촬영 대상을 확인하고 Metadata를 수정하세요."),
-        (("exposure_value","process_run"),"공통 Metadata에서 실제 노광 조건을 선택하세요. 기존 Wafer의 공정 조건과도 일치해야 합니다."),
+        (("exposure_value","process_run"),"노광 조건 미입력 · 공통 Metadata에 실제 노광 수치를 입력해야 등록할 수 있습니다."),
         (("Filename needs","manual_metadata"),"파일명 확인·수정 탭에서 Wafer / Die / 촬영 위치를 입력하고 Preview를 재검증하세요."),
         (("wafer_id","canonical W"),"Wafer ID를 W1 형식으로 입력하세요. Batch와 이미지의 Wafer가 같아야 합니다."),
         (("die","Die"),"Die ID를 11~18 / 21~28 / 31~38 중에서 선택하세요."),
@@ -184,7 +191,9 @@ def _registration_body(provider,mode,dataset_role,upload_slot=None,batch_name=""
     if mode=="Single Image" and not info["single_image_supported"]:
         return None,None,"Schema v1에서는 Single Image를 저장할 수 없습니다. 별도 승인 후 v2 Migration이 필요합니다."
     generation=st.session_state.get("sqlite_uploader_generation","initial")
-    with (upload_slot or st).popover("파일 선택",width="stretch"):
+    with (upload_slot or st).popover("Upload / Drop",width="stretch",
+                                     help="클릭해 파일을 선택하거나, 열린 업로드 영역에 파일을 끌어다 놓으세요. "
+                                          +("PNG / ZIP" if mode=="Wafer Batch" else "PNG")+"만 지원합니다."):
         uploaded=st.file_uploader("PNG / ZIP 선택" if mode=="Wafer Batch" else "PNG 이미지 선택",
             type=["png","zip"] if mode=="Wafer Batch" else ["png"],
             accept_multiple_files=mode!="Single Image",key="sqlite_files_"+generation,
@@ -202,9 +211,12 @@ def _registration_body(provider,mode,dataset_role,upload_slot=None,batch_name=""
         st.caption("이전 임시 업로드를 유지합니다. 새 파일 선택 또는 새 등록 시작으로 변경할 수 있습니다.")
     else:
         bundle=sync_uploads(st.session_state,payloads,provider)
+        if bundle and "registered" not in bundle:
+            notify("업로드 완료",f"{len(payloads)}개 파일","임시 업로드 · DB 미등록",count=len(bundle["inputs"]),
+                   level="info",key=("upload",bundle["inputs"][0]["image_id"]))
     if not bundle:
         _clear_confirmations()
-        return None,None,"이미지를 선택하세요. 필수 Metadata 입력 후 등록할 수 있습니다."
+        return None,None,""  # No files yet: the register button stays disabled without an extra notice.
     if "registered" in bundle:
         _clear_confirmations()
         result=bundle["registered"]
@@ -222,6 +234,8 @@ def _registration_body(provider,mode,dataset_role,upload_slot=None,batch_name=""
         return None,bundle,"등록 완료 · 새 업로드 준비 (입력 초기화)를 사용하세요."
     bundle.setdefault("batch_id","BATCH-"+uuid.uuid4().hex)
     bundle.setdefault("process_run_id","PROCESS-"+uuid.uuid4().hex)
+    bundle.setdefault("batch_process_run_id","PROCESS-"+uuid.uuid4().hex)  # Used only for a Batch-only exposure (v5).
+    batch_process=info.get("version",0)>=5
     if bundle.get("input_mode")!=mode:
         bundle["per_image_metadata"]={}
         bundle["input_mode"]=mode
@@ -234,24 +248,16 @@ def _registration_body(provider,mode,dataset_role,upload_slot=None,batch_name=""
         except FilenameParseError:
             pass
     scope=bundle["inputs"][0]["image_id"]
-    initial_wafer=common.get("wafer",next(iter(inferred)) if len(inferred)==1 else "")
-    initial_process=provider.wafer_process(initial_wafer)
-    missing_common=not initial_wafer or (common.get("exposure") is None and initial_process is None)
-    with st.expander("공통 Metadata",expanded=missing_common):
-        st.caption("필수: Wafer ID · 신규 공정의 실제 노광 조건 / 선택: 노광 단위. Batch는 등록 작업 단위입니다.")
-        wafer=st.text_input("Batch Wafer ID",value=initial_wafer,placeholder="필수 · 예: W1",
-                            help="필수 · 촬영 대상 Wafer입니다. 파일명과 충돌하면 자동 덮어쓰지 않습니다.",
-                            key="sqlite_wafer_"+scope)
-        existing=provider.wafer_process(wafer)
-        known_exposure=existing["exposure_value"] if existing else None
-        # Unknown process values are never replaced by the Mock default.
-        default=common.get("exposure",known_exposure)
-        exposure_options=list(dict.fromkeys([None,50,60,70,80]+([default] if default is not None else [])))
-        exposure=st.selectbox("노광 조건",exposure_options,index=exposure_options.index(default),
-            format_func=lambda value:"선택 필요 · 실제 노광 조건" if value is None else str(value),help="신규 공정은 필수 · 실제 사용한 값만 선택하세요.",key="sqlite_exposure_"+scope)
-        unit=st.text_input("노광 단위 (모르면 공란)",
-            value=common.get("unit",(existing["exposure_unit"] or "") if existing else ""),key="sqlite_unit_"+scope,placeholder="선택 · 단위를 모르면 비워 두세요")
-    common.update(wafer=wafer,exposure=exposure,unit=unit,mode=mode,dataset_role=dataset_role)
+    # TASK18-B-10B: Schema v6 + Wafer Batch -> any number of Wafers in ONE Batch, each with its own
+    # 노광/PEB. Other modes and v5 DBs keep the single-Wafer common Metadata exactly as before.
+    multi=mode=="Wafer Batch" and info.get("multi_wafer_supported",False)
+    status_slots={}
+    if multi:
+        metadata,wafer,status_slots=_multi_wafer_metadata(provider,bundle,scope,info,dataset_role,batch_name)
+        common.update(mode=mode,dataset_role=dataset_role)
+    else:
+        metadata,wafer=_single_wafer_metadata(provider,bundle,common,scope,inferred,info,batch_process,
+                                              mode,dataset_role,batch_name)
     with st.expander("반복 / 조명 Metadata",expanded=True) if mode in ("Repeatability","Lighting") else st.container():
         if mode=="Repeatability":
             st.caption("반복 번호 초기값은 업로드 순서입니다. 실제 순서를 확인·수정하세요.")
@@ -277,12 +283,6 @@ def _registration_body(provider,mode,dataset_role,upload_slot=None,batch_name=""
                 bundle["per_image_metadata"][item["image_id"]]={"acquisition_condition":{
                     "condition_id":condition_ids[item["image_id"]],"magnification":magnification,
                     "illumination_setting":illumination,"auto_exposure":auto}}
-    metadata={"batch_id":bundle["batch_id"],"wafer_id":wafer,"upload_mode":MODE_CODES[mode],
-              "dataset_role":dataset_role.lower(),"batch_status":"registered",
-              "process_run_id":existing["process_run_id"] if existing else bundle["process_run_id"],
-              "notes":notes_with_batch_name(None,batch_name)}
-    if exposure is not None:
-        metadata["process_run"]={"exposure_value":float(exposure),"exposure_unit":unit or None}
     preview=provider.preview(reviewed_inputs(bundle),metadata)
     st.session_state["sqlite_preview"]=preview
     token=_confirmation_scope(preview)
@@ -290,14 +290,23 @@ def _registration_body(provider,mode,dataset_role,upload_slot=None,batch_name=""
     plan=provider.prepare_registration(preview,decisions)
     st.session_state["sqlite_registration_plan"]=plan
     duplicate_count=sum(bool(row["duplicate_image_ids"] or row["duplicate_input_indices"]) for row in preview["images"])
-    errors=sum(row["status"] in ("NEEDS_METADATA","INVALID") for row in preview["images"])
+    if duplicate_count:
+        notify("중복 감지",wafer or "Wafer 미입력","등록 전 처리 선택 필요",count=duplicate_count,
+               level="warning",key=("duplicate",token))
+    error_names=[_short_name(row["original_filename"]) for row in preview["images"]
+                 if row["status"] in ("NEEDS_METADATA","INVALID")]
+    errors=len(error_names)
     valid=sum(row["status"]=="VALID" for row in preview["images"])
     st.caption(f"전체 업로드 {len(preview['images'])} · 정상 검증 {valid} · 중복 {duplicate_count} · "
                f"오류·수정 필요 {errors} · 최종 등록 예정 {plan['selected_count']} · "
                f"제외 {len(plan['excluded_image_ids'])} · 중복 허용 등록 {len(plan['separate_image_ids'])}")
+    if error_names:
+        st.caption("오류·수정 필요 파일: "+", ".join(error_names[:10])+(f" 외 {len(error_names)-10}개" if len(error_names)>10 else ""))
     with st.expander("검증 목록"):
         st.dataframe(_preview_rows(preview),hide_index=True,width="stretch")
-    if mode=="Wafer Batch":
+    if multi:
+        _render_multi_preview(preview,plan,status_slots,batch_name)
+    elif mode=="Wafer Batch":
         sites=[(row["effective_metadata"]["die_code"],row["effective_metadata"]["position_code"])
                for row in plan["final_preview"]["images"] if row["effective_metadata"]]
         st.caption(f"기본 72개 촬영 위치 중 {len(set(sites))}개 · 누락 {72-len(set(sites))}개 · "
@@ -312,6 +321,224 @@ def _registration_body(provider,mode,dataset_role,upload_slot=None,batch_name=""
         issues=preview["batch_issues"]+[issue for row in preview["images"] for issue in row["issues"]]
         return plan,bundle,issue_guidance(issues[0]["message"]) if issues else "필수 Metadata 또는 파일명·촬영 조건을 수정하세요."
     return plan,bundle,""
+
+
+# --- TASK18-B-10B: several Wafers in ONE Batch (Schema v6, Wafer Batch mode) --------------------
+READINESS={"VALID":"READY","DUPLICATE_CANDIDATE":"REVIEW_REQUIRED","NEEDS_METADATA":"REVIEW_REQUIRED","INVALID":"BLOCKED"}
+
+
+def _natural_wafer(wafer):
+    digits=wafer[1:] if isinstance(wafer,str) else ""
+    return (0,int(digits),wafer) if digits.isdigit() else (1,0,str(wafer))
+
+
+def detected_wafers(bundle):
+    """{Wafer: image count} from each image's own identity (manual edit first, else filename) + unknowns.
+
+    Dynamic: any number of Wafers and any number of images per Wafer; nothing is assumed (no fixed
+    Wafer IDs, no 72 images). A ZIP name is never used. Unidentified images are counted, never assigned.
+    """
+    counts={}
+    unknown=0
+    for item in bundle["inputs"]:
+        manual=bundle.get("manual_metadata",{}).get(item["image_id"])
+        wafer=None
+        if isinstance(manual,dict):
+            wafer=manual.get("wafer_id")
+            if wafer:
+                try:
+                    wafer=validate_metadata(wafer_id=wafer,die_code="11",position_code="c").wafer_id
+                except FilenameParseError:
+                    pass  # Kept as typed; the registry reports the invalid ID.
+        else:
+            try:
+                wafer=parse_filename(Path(item["image_path"]).name).wafer_id
+            except FilenameParseError:
+                wafer=None
+        if wafer:
+            counts[wafer]=counts.get(wafer,0)+1
+        else:
+            unknown+=1
+    return dict(sorted(counts.items(),key=lambda pair:_natural_wafer(pair[0]))),unknown
+
+
+def _apply_common_values(scope):
+    """Fill ONLY empty 노광/PEB cells of the selected Wafers; entered values are never overwritten."""
+    bundle=st.session_state.get("sqlite_uploads")
+    if not bundle:
+        return
+    meta=bundle.setdefault("wafer_meta",{})
+    revision=bundle.get("wafer_revision",0)
+    for wafer,entry in meta.items():   # Keep what the user typed in the current widgets first.
+        for field in ("exposure","peb"):
+            key=f"sqlite_wafer_{field}_{scope}_{wafer}_{revision}"
+            if key in st.session_state:
+                entry[field]=st.session_state[key]
+    values={"exposure":st.session_state.get("sqlite_wafer_common_exposure_"+scope),
+            "peb":st.session_state.get("sqlite_wafer_common_peb_"+scope)}
+    filled={"exposure":[],"peb":[]}
+    kept=[]
+    for wafer in st.session_state.get("sqlite_wafer_common_targets_"+scope) or []:
+        entry=meta.get(wafer)
+        if entry is None:
+            continue
+        for field,value in values.items():
+            if value is None:
+                continue
+            if entry[field] is None:
+                entry[field]=float(value)
+                filled[field].append(wafer)
+            elif entry[field]!=float(value):
+                kept.append(wafer)
+    bundle["wafer_revision"]=revision+1   # New widget keys pick up the stored values without state conflicts.
+    note=[]
+    if filled["exposure"]:
+        note.append("노광 적용: "+", ".join(filled["exposure"]))
+    if filled["peb"]:
+        note.append("PEB 적용: "+", ".join(filled["peb"]))
+    if kept:
+        note.append("기존 값 유지(덮어쓰지 않음): "+", ".join(dict.fromkeys(kept)))
+    bundle["wafer_apply_note"]=" · ".join(note) or "적용할 빈 칸이 없습니다."
+
+
+def _multi_wafer_metadata(provider,bundle,scope,info,dataset_role,batch_name):
+    """One input row per DETECTED Wafer (dynamic count): 노광 (required number) and PEB Time (s, optional)."""
+    wafers,unknown=detected_wafers(bundle)
+    meta=bundle.setdefault("wafer_meta",{})
+    for wafer in wafers:
+        meta.setdefault(wafer,{"exposure":None,"peb":None,"process_run_id":"PROCESS-"+uuid.uuid4().hex,
+                               "batch_process_run_id":"PROCESS-"+uuid.uuid4().hex})
+    revision=bundle.get("wafer_revision",0)
+    missing=unknown or any(meta[w]["exposure"] is None for w in wafers)
+    slots={}
+    with st.expander("Wafer별 공정조건",expanded=bool(missing)):
+        st.caption(f"감지된 Wafer {len(wafers)}개 · 이미지 {sum(wafers.values())}장"
+                   +(f" · Wafer 미확인 {unknown}장 (업로드 이미지 확인 탭에서 Wafer / Die / 위치 입력)" if unknown else "")
+                   +" · Wafer는 이미지 파일명(또는 이미지별 수정값)으로만 구분합니다.")
+        widths=[.8,.7,1.3,1.3,1.4]
+        for column,heading in zip(st.columns(widths,gap="small"),
+                                  ["Wafer ID","이미지","노광 조건","PEB Time (s)","검증 상태"]):
+            column.markdown("**"+heading+"**")
+        for wafer,count in wafers.items():
+            entry=meta[wafer]
+            cols=st.columns(widths,gap="small",vertical_alignment="center")
+            cols[0].write(wafer)
+            cols[1].write(f"{count}장")
+            entry["exposure"]=cols[2].number_input("노광 조건 · "+wafer,value=entry["exposure"],step=1.0,format="%g",
+                key=f"sqlite_wafer_exposure_{scope}_{wafer}_{revision}",placeholder="필수 · 실제 노광 수치 (mJ/cm²)",
+                label_visibility="collapsed",help="이 Wafer의 실제 노광 · 단위는 입력·추정하지 않습니다.")
+            entry["peb"]=cols[3].number_input("PEB Time (s) · "+wafer,value=entry["peb"],step=1.0,format="%g",
+                key=f"sqlite_wafer_peb_{scope}_{wafer}_{revision}",placeholder="미입력은 NULL",
+                disabled=not info.get("peb_supported",False),label_visibility="collapsed",
+                help="이 Wafer의 PEB 시간(초) · 입력한 숫자를 그대로 저장합니다.")
+            slots[wafer]=cols[4].empty()
+        if wafers:
+            with st.popover("공통값 적용 (빈 칸에만)",width="content"):
+                st.number_input("공통 노광 조건",value=None,step=1.0,format="%g",key="sqlite_wafer_common_exposure_"+scope,
+                                placeholder="선택")
+                st.number_input("공통 PEB Time (s)",value=None,step=1.0,format="%g",key="sqlite_wafer_common_peb_"+scope,
+                                placeholder="선택",disabled=not info.get("peb_supported",False))
+                st.multiselect("적용 대상 Wafer",list(wafers),default=list(wafers),key="sqlite_wafer_common_targets_"+scope)
+                st.caption("선택한 Wafer 중 비어 있는 칸에만 채웁니다. 이미 입력된 Wafer별 값은 바꾸지 않습니다.")
+                st.button("빈 칸에 적용",key="sqlite_wafer_common_apply_"+scope,on_click=_apply_common_values,args=(scope,))
+        if bundle.get("wafer_apply_note"):
+            st.caption(bundle["wafer_apply_note"])
+    configs={}
+    for wafer in wafers:
+        entry=meta[wafer]
+        existing=provider.wafer_process(wafer)
+        exposure=entry["exposure"]
+        # No unit widget: the Wafer record's unit is reused only for exactly its own value.
+        unit=(existing["exposure_unit"] if existing and exposure is not None and existing["exposure_value"]==float(exposure)
+              else None)
+        config={"peb_time_s":None if entry["peb"] is None else float(entry["peb"]),
+                "batch_process_run_id":entry["batch_process_run_id"]}
+        if not existing:
+            config["process_run_id"]=entry["process_run_id"]
+        if exposure is not None:
+            config["process_run"]={"exposure_value":float(exposure),"exposure_unit":unit}
+        configs[wafer]=config
+    bundle["wafer_label"]=", ".join(wafers)
+    metadata={"batch_id":bundle["batch_id"],"wafer_id":next(iter(wafers),""),"upload_mode":"wafer_batch",
+              "dataset_role":dataset_role.lower(),"batch_status":"registered",
+              "notes":notes_with_batch_name(None,batch_name),"wafers":configs}
+    return metadata,bundle["wafer_label"],slots
+
+
+def _render_multi_preview(preview,plan,slots,batch_name):
+    """Batch totals and the per-Wafer validation table (counts from the registry Preview, not recomputed)."""
+    rows=preview["images"]
+    states=[READINESS.get(row["status"],"BLOCKED") for row in rows]
+    duplicates=sum(bool(row["duplicate_image_ids"] or row["duplicate_input_indices"]) for row in rows)
+    listed=[item for item in preview.get("wafer_summary",[]) if item["wafer_id"]]
+    st.caption(f"Batch {batch_name or '(이름 미입력 · 자동 표시명)'} · 전체 {len(rows)}장 · Wafer {len(listed)}개 · "
+               f"READY {states.count('READY')} · REVIEW_REQUIRED {states.count('REVIEW_REQUIRED')} · "
+               f"BLOCKED {states.count('BLOCKED')} · 중복 {duplicates} · 최종 등록 예정 {plan['selected_count']}")
+    by_wafer={}
+    for row in rows:
+        wafer=row["effective_metadata"]["wafer_id"] if row["effective_metadata"] else None
+        by_wafer.setdefault(wafer,[]).append(row)
+    config=preview["batch_metadata"].get("wafers") or {}
+    table=[]
+    for item in preview.get("wafer_summary",[]):
+        wafer=item["wafer_id"]
+        members=by_wafer.get(wafer,[])
+        counts={state:sum(READINESS.get(r["status"])==state for r in members) for state in ("READY","REVIEW_REQUIRED","BLOCKED")}
+        reasons=list(dict.fromkeys(issue_guidance(issue["message"]) for r in members for issue in r["issues"]))
+        process=(config.get(wafer) or {}).get("process_run") or {}
+        peb=(config.get(wafer) or {}).get("peb_time_s")
+        table.append({"Wafer ID":wafer or "미확인","이미지":item["image_count"],
+                      "노광":"미입력" if process.get("exposure_value") is None else exposure_text(process["exposure_value"],process.get("exposure_unit")),
+                      "PEB (s)":"—" if peb is None else f"{peb:g}",
+                      "Die·위치":f"{item['site_count']}개 위치"+(f" · 추가 촬영 {item['same_site_extra']}" if item["same_site_extra"] else ""),
+                      "READY":counts["READY"],"REVIEW_REQUIRED":counts["REVIEW_REQUIRED"],"BLOCKED":counts["BLOCKED"],
+                      "중복 후보":item["duplicate_count"],"사유":" / ".join(reasons[:2]) or "—"})
+        if wafer in slots:
+            slots[wafer].caption(f"READY {counts['READY']} · 검토 {counts['REVIEW_REQUIRED']} · 차단 {counts['BLOCKED']}")
+    with st.expander("Wafer별 검증",expanded=any(t["BLOCKED"] or t["REVIEW_REQUIRED"] for t in table)):
+        st.dataframe(table,hide_index=True,width="stretch",key="sqlite_wafer_preview_table",
+                     column_config={"사유":st.column_config.TextColumn("사유",width="large")})
+        st.caption("Die·위치는 등록 대상 위치 수입니다. 72개(24 Die × lt/c/rb)는 완전 촬영 세트의 예시이며 필수 수량이 아닙니다.")
+
+def _single_wafer_metadata(provider,bundle,common,scope,inferred,info,batch_process,mode,dataset_role,batch_name):
+    """Pre-v6 / non-Wafer-Batch common Metadata: ONE Batch Wafer, one 노광/PEB (unchanged behaviour)."""
+    initial_wafer=common.get("wafer",next(iter(inferred)) if len(inferred)==1 else "")
+    initial_process=provider.wafer_process(initial_wafer)
+    missing_common=not initial_wafer or (common.get("exposure") is None and (initial_process is None or batch_process))
+    with st.expander("공통 Metadata",expanded=missing_common):
+        wafer=st.text_input("Batch Wafer ID",value=initial_wafer,placeholder="필수 · 예: W1",
+                            help="필수 · 촬영 대상 Wafer입니다. 파일명과 충돌하면 자동 덮어쓰지 않습니다.",
+                            key="sqlite_wafer_"+scope)
+        existing=provider.wafer_process(wafer)
+        known_exposure=existing["exposure_value"] if existing else None
+        # Unknown process values are never replaced by the Mock default. With Batch-level process
+        # records (v5) the Wafer's existing exposure is shown as a reference, never pre-selected.
+        default=common.get("exposure") if batch_process else common.get("exposure",known_exposure)
+        # TASK18-B-10A.2: the Wafer-record reference caption is no longer shown (lookup and policy unchanged).
+        # TASK18-B-10A.1: direct numeric entry (no preset list, no range). Empty = not entered (registration blocked).
+        exposure=st.number_input("노광 조건",value=None if default is None else float(default),step=1.0,format="%g",
+            key="sqlite_exposure_value_"+scope,placeholder="필수 · 실제 노광 수치 (mJ/cm²)",
+            help="신규 공정은 필수 · 실제 사용한 값만 입력하세요 (소수 가능).")
+        # No unit widget: a unit is never invented. The Wafer record's own unit is reused only when the
+        # entered value equals that record (so the same record is reused exactly as before); otherwise none.
+        unit=(existing["exposure_unit"] if existing and exposure is not None and existing["exposure_value"]==float(exposure)
+              else None)
+        peb=st.number_input("PEB Time (s, 선택)",value=common.get("peb_temperature_c"),
+            step=1.0,format="%g",key="sqlite_peb_"+scope,disabled=not info.get("peb_supported",False),
+            placeholder="미입력은 NULL",help="Batch 공통 공정 Metadata · PEB 시간(초). 입력한 숫자를 그대로 저장합니다.")
+        if not info.get("peb_supported",False):
+            st.caption("PEB 저장은 명시적 Schema v3 적용 후 사용할 수 있습니다.")
+    common.update(wafer=wafer,exposure=None if exposure is None else float(exposure),unit=unit,mode=mode,dataset_role=dataset_role,
+                  peb_temperature_c=peb)
+    metadata={"batch_id":bundle["batch_id"],"wafer_id":wafer,"upload_mode":MODE_CODES[mode],
+              "dataset_role":dataset_role.lower(),"batch_status":"registered",
+              "process_run_id":existing["process_run_id"] if existing else bundle["process_run_id"],
+              "notes":notes_with_batch_name(None,batch_name),"peb_temperature_c":peb}
+    if exposure is not None:
+        metadata["process_run"]={"exposure_value":float(exposure),"exposure_unit":unit or None}
+    if batch_process:
+        metadata["batch_process_run_id"]=bundle["batch_process_run_id"]
+    return metadata,wafer
 
 
 def _reset_draft():
@@ -357,12 +584,19 @@ def render_registration(mode,dataset_role,upload_slot=None):
             st.caption(reason)
     if clicked:
         try:
-            result=provider.register_selection(plan,approved=True)  # Click is explicit approval.
+            with st.spinner(f"SQLite 등록 중 · {count}장"):
+                result=provider.register_selection(plan,approved=True)  # Click is explicit approval.
             bundle["registered"]=result
             st.session_state["sqlite_last_result"]=result
+            # Notified only after the registration call returned (committed).
+            notify("SQLite 등록 완료",result.get("wafer_id") or bundle.get("wafer_label") or bundle["common_metadata"].get("wafer") or result["batch_id"],
+                   "등록 완료",count=result.get("registered_count",result.get("image_count")),level="success",
+                   key=("registered",result["batch_id"]))
             bundle["files"].cleanup()
             st.rerun()
         except (ValueError,OSError,RuntimeError,sqlite3.Error) as exc:
+            notify("SQLite 저장 실패","이미지 등록","실패 · 저장되지 않음",count=count,level="error",
+                   key=("register_failed",uuid.uuid4().hex))
             _show_error("등록 실패.",exc)
 
 
@@ -375,6 +609,22 @@ def _repairable(row):
                for issue in row["issues"])
 
 
+def review_help(provider):
+    """Tooltip text (moved from captions). Matches the actual registration rule of the DB schema."""
+    base=("공통 공정/촬영 조건(노광·PEB 시간·촬영 배율·조명) 누락은 이미지 등록 탭의 공통 Metadata에서 보완하세요. "
+          "이 탭에서는 이미지별 Wafer / Die / 촬영 위치만 수정합니다.")
+    try:
+        version=provider.schema_info().get("version",0)
+    except (ValueError,OSError,RuntimeError,sqlite3.Error):
+        version=0
+    if version>=5:
+        rule=("노광은 이 Batch의 실제 조건을 직접 입력하세요. 기존 Wafer 기록과 다른 노광은 이 Batch에만 저장되며 "
+              "Wafer 기록은 바뀌지 않습니다.")
+    else:
+        rule="노광은 실제 조건을 입력하세요. 이 DB Schema에서는 기존 Wafer의 공정 조건과 일치해야 합니다."
+    return base+" "+rule
+
+
 def render_review():
     bundle=st.session_state.get("sqlite_uploads")
     preview=st.session_state.get("sqlite_preview")
@@ -385,10 +635,12 @@ def render_review():
         st.info("등록 완료 · 아래 조회 목록에서 확인하세요.")
         return
     needs=[row for row in preview["images"] if _repairable(row)]
-    st.caption(f"전체 {len(preview['images'])}장 · 검증 완료 "
-               f"{sum(row['status'] in ('VALID','DUPLICATE_CANDIDATE') for row in preview['images'])}장 · "
-               f"수정 필요 {len(needs)}장")
-    show_all=st.checkbox("전체 이미지 보기",key="sqlite_review_all_"+bundle["batch_id"])
+    counts=(f"전체 {len(preview['images'])}장 · 검증 완료 "
+            f"{sum(row['status'] in ('VALID','DUPLICATE_CANDIDATE') for row in preview['images'])}장 · "
+            f"수정 필요 {len(needs)}장")
+    with st.container(horizontal=True,vertical_alignment="center",gap="medium",key="sqlite_review_counts"):
+        show_all=st.checkbox("전체 이미지 보기",key="sqlite_review_all_"+bundle["batch_id"],width="content")
+        st.caption(counts,width="content")
     rows=preview["images"] if show_all else needs
     if not rows:
         st.info("파일명 수정이 필요한 이미지가 없습니다. 중복 처리는 이미지 등록 탭에서 선택하세요.")
@@ -398,22 +650,15 @@ def render_review():
     with left:
         selected=st.radio("업로드 이미지 확인",list(items),
             format_func=lambda key:_short_name(items[key]["original_filename"])+" · "+items[key]["status"]+" · "+key[-6:],
-            key="sqlite_review_"+bundle["batch_id"])
+            key="sqlite_review_"+bundle["batch_id"],help=review_help(_provider()))
         row=items[selected]
-        st.caption("공통 공정/촬영 조건 누락은 이미지 등록 탭에서 보완하세요.")
         if row["parse_error"]:
             st.caption("파일명에서 촬영 위치를 확인할 수 없습니다. 아래 Metadata를 입력하세요.")
+        # The exposure remedy now lives in the "업로드 이미지 확인" tooltip; other remedies stay visible.
+        exposure_hint=issue_guidance("exposure_value")
         for guidance in dict.fromkeys(issue_guidance(issue["message"]) for issue in row["issues"]):
-            st.caption(guidance)
-        if row["issues"]:
-            with st.expander("검증 기술 상세"):
-                st.json([{"status":issue["status"],"message":_technical_message(issue["message"])}
-                         for issue in row["issues"]])
-        with st.expander("전체 파일명 및 입력 출처"):
-            st.json({"filename":row["original_filename"],"source":row["metadata_source"],
-                     "parsed":row["parsed_metadata"],
-                     "archive_member":next((item.get("archive_member") for item in bundle["inputs"]
-                                            if item["image_id"]==selected),None)})
+            if guidance!=exposure_hint:
+                st.caption(guidance)
     values=bundle["manual_metadata"].get(selected) or row["effective_metadata"] or {}
     with right:
         with st.form("sqlite_edit_"+selected,border=False):
@@ -435,36 +680,97 @@ def render_review():
             st.rerun()
     if st.button("선택 이미지 미리보기",key="sqlite_review_image_"+selected):
         st.image(row["image_path"],width="stretch")
+    # Validation evidence, collapsed under the preview (moved from the left column; content unchanged).
+    if row["issues"]:
+        with st.expander("검증 기술 상세"):
+            st.json([{"status":issue["status"],"message":_technical_message(issue["message"])}
+                     for issue in row["issues"]])
+    with st.expander("전체 파일명 및 입력 출처"):
+        st.json({"filename":row["original_filename"],"source":row["metadata_source"],
+                 "parsed":row["parsed_metadata"],
+                 "archive_member":next((item.get("archive_member") for item in bundle["inputs"]
+                                        if item["image_id"]==selected),None)})
+
+
+def exposure_text(value,unit=None):
+    """Condition label shared by the Wafer table and Wafer detail (same grouping, same counts).
+
+    TASK18-B-13A.2: value + display unit (unrecorded -> mJ/cm²; a recorded unit stays its own condition).
+    """
+    from dashboard.units import exposure_display
+    return exposure_display(value,unit,missing="미확인")
+
+
+def exposure_texts(frame):
+    units=frame["exposure_unit"] if "exposure_unit" in frame else [None]*len(frame)
+    return [exposure_text(v,u) for v,u in zip(frame["exposure_value"],units)]
+
+
+def peb_text(value):
+    return "—" if value is None or value!=value else f"{value:g}"
+
+
+def condition_batches(batches,wafer_id,exposure,peb):
+    """Batch × Wafer rows of exactly one Wafer × effective 노광 × PEB (labels from `condition_accumulation`).
+
+    Pass provider.batch_wafers(): a multi-Wafer Batch contributes only its row for this Wafer.
+    """
+    if batches.empty:
+        return batches
+    import pandas as pd
+    keep=((batches["wafer_id"]==wafer_id)&(pd.Series(exposure_texts(batches),index=batches.index)==exposure)
+          &(batches["peb_temperature_c"].map(peb_text)==peb))
+    return batches[keep]
+
+
+def condition_accumulation(batches,analysed):
+    """Per Wafer × effective 노광 × PEB: Batch/image/analysed counts (SQLite values only).
+
+    `batches` = provider.batch_wafers() (one row per Batch × Wafer, image_count of THAT Wafer only) and
+    `analysed` = analysed_per_batch_wafer(); so a multi-Wafer Batch is never counted twice per Wafer.
+    """
+    import pandas as pd
+    frame=batches.assign(analysed=[int(analysed.get((b,w),0)) for b,w in zip(batches["batch_id"],batches["wafer_id"])],
+        exposure=exposure_texts(batches),
+        peb=batches["peb_temperature_c"].map(peb_text))
+    if frame.empty:
+        return pd.DataFrame(columns=["Wafer","노광","PEB (s)","Batch 수","등록 이미지 수","분석 결과 이미지 수"])
+    table=frame.groupby(["wafer_id","exposure","peb"],sort=True).agg(
+        batches=("batch_id","count"),images=("image_count","sum"),done=("analysed","sum")).reset_index()
+    return table.rename(columns={"wafer_id":"Wafer","exposure":"노광","peb":"PEB (s)","batches":"Batch 수",
+                                 "images":"등록 이미지 수","done":"분석 결과 이미지 수"})
 
 
 def render_overview():
     try:
         provider=_provider()
-        _schema_notice(provider)
+        if os.environ.get("IDA_SHOW_DB_PATH")=="1":  # TASK18-B-11: Schema/DB caption removed; admin info kept.
+            with st.expander("관리자 연결 정보"):
+                st.code(str(provider.db_path.resolve()))
         batches=provider.batches()
+        status=provider.system_status()
+        analysed=analysed_per_batch(provider)
+        members=provider.batch_wafers()
         mode_counts=batches.groupby("upload_mode")["image_count"].sum().to_dict()
         history=[]
         running=0
+        done=0
         for row in batches.iloc[::-1].to_dict("records"):
             running+=row["image_count"]
-            history.append({"label":row["created_at"],"image_count":running})
-        summary={"batch_count":len(batches),"image_count":provider.image_count(),
+            done+=analysed.get(row["batch_id"],0)
+            history.append({"label":row["created_at"][:16].replace("T"," "),"image_count":running,"analysed_count":done})
+        summary={"batch_count":status["batches"],"image_count":status["images"],
+                 "analysed_count":status["analysed_images"],"review_count":status["review_images"],
                  "recent_image_count":int(batches.iloc[0]["image_count"]) if len(batches) else 0,
                  "mode_image_counts":{label:int(mode_counts.get(code,0)) for label,code in MODE_CODES.items()},
                  "history":history}
         accumulation_overview(summary,source="SQLite")
-        processing_pipeline([
-            {"stage":"업로드","detail":"SQLite 등록"},
-            {"stage":"Metadata","detail":"등록 정보"},
-            {"stage":"Calibration","detail":"미연결"},
-            {"stage":"계측·AI","detail":"미연결"},
-            {"stage":"DB","detail":"저장"},
-        ])
-        image_status_tiles([
-            {"label":"이미지 등록","state":str(summary["image_count"])+"장","state_key":"registered"},
-            {"label":"Calibration","state":"미연결","state_key":"registered"},
-            {"label":"계측·AI","state":"미연결","state_key":"registered"},
-        ],notice="실제 등록 Metadata · Calibration/계측·AI 결과 미연결")
+        conditions=condition_accumulation(members,analysed_per_batch_wafer(provider))
+        st.dataframe(conditions,hide_index=True,width="stretch",
+                     height=min(36*(len(batches)+1),260))
+        st.caption("등록일 순 누적 · 분석 결과는 이미지별 최신 실행 1건 기준 (AI 잠정 · 공식 채택 아님) · "
+                   "노광은 Batch 기록 우선, 없으면 Wafer 기록")
+        # TASK18-B-11.1: step-flow and status tiles removed (display only; the KPIs above show the same counts).
     except (ValueError,OSError,RuntimeError,sqlite3.Error) as exc:
         _show_error("등록 현황 조회 실패.",exc)
 
@@ -476,7 +782,7 @@ def render_progress():
         _show_error("등록 상태 조회 실패.",exc)
 
 
-def render_registered_images(provider,batch_id=None):
+def render_registered_images(provider,batch_id=None,*,detailed=False):
     is_mock=provider is None
     source="Mock" if is_mock else "SQLite"
     labels={"전체":None,**MODE_CODES}
@@ -509,13 +815,35 @@ def render_registered_images(provider,batch_id=None):
     if images.empty:
         st.info("해당 유형의 등록 이미지가 없습니다.")
         return
-    display=images[["original_filename","wafer_id","die_code","position_code",
-                    "upload_mode","created_at","metadata_status"]].copy()
-    display["original_filename"]=display["original_filename"].map(_short_name)
-    st.dataframe(display,hide_index=True,width="stretch",height=(len(display)+1)*35+3,
+    columns=["original_filename","wafer_id","die_code","position_code",
+             "upload_mode","created_at","metadata_status"]
+    if detailed and not is_mock:
+        columns=["image_id","original_filename","wafer_id","die_code","position_code",
+                 "physical_site_id","upload_mode","repeat_index","exposure_value","exposure_unit","peb_temperature_c",
+                 "illumination_setting","magnification","auto_exposure","captured_at","created_at","metadata_status"]
+    display=images[columns].copy()
+    if not detailed:
+        display["original_filename"]=display["original_filename"].map(_short_name)
+    selectable=detailed and not is_mock
+    table_key=f"sqlite_image_table_{batch_id}_{mode}_{page_size}_{page}"
+    presented=display.style.format(na_rep="미기록",precision=3) if detailed and not is_mock else display
+    event=st.dataframe(presented,hide_index=True,width="stretch",height=(len(display)+1)*35+3,
+                 key=table_key if selectable else None,
+                 on_select="rerun" if selectable else "ignore",selection_mode="single-cell" if selectable else "multi-row",
                  column_config={"original_filename":st.column_config.TextColumn("원본 파일명",width="medium"),
                      "wafer_id":"Wafer ID","die_code":"Die ID","position_code":"촬영 위치",
-                     "upload_mode":"등록 유형","created_at":"등록일","metadata_status":"Metadata 상태"})
+                     "upload_mode":"등록 유형","created_at":"등록일","metadata_status":"Metadata 상태",
+                     "image_id":st.column_config.TextColumn("Image ID · 상세",help="Image ID 셀을 클릭하면 현재 탭에서 상세페이지를 엽니다.")
+                        if selectable else "Image ID","physical_site_id":"Physical Site ID","repeat_index":"반복 번호",
+                     "exposure_value":"노광","exposure_unit":"노광 단위","peb_temperature_c":"PEB (s)","illumination_setting":"조명",
+                     "magnification":"배율","auto_exposure":"Auto Exposure","captured_at":"촬영 일시"})
+    if selectable:
+        cells=event["selection"]["cells"]
+        if cells:
+            index,column=cells[-1]
+            if column=="image_id" and isinstance(index,int) and 0<=index<len(images):
+                st.session_state["sqlite_image_table_to_clear"]=table_key
+                open_image_detail(str(images.iloc[index]["image_id"]),batch_id)
     records={row["image_id"]:row for row in images.to_dict("records")}
     with st.expander("이미지 상세 정보"):
         chosen=st.selectbox("파일 보기",list(records),
@@ -525,7 +853,14 @@ def render_registered_images(provider,batch_id=None):
         fields=("image_id","batch_id","original_filename","physical_site_id","status") if is_mock else (
             "image_id","batch_id","original_filename","wafer_id","die_code","position_code","metadata_status",
             "width_px","height_px","created_at","upload_mode","sha256","repeat_index",
-            "illumination_setting","magnification","auto_exposure")
+            "illumination_setting","magnification","auto_exposure","peb_temperature_c")
+        if detailed and not is_mock:
+            fields=(*fields,"physical_site_id","exposure_value","exposure_unit","captured_at")
+            st.session_state["selected_sqlite_image_id"]=chosen
+            st.session_state["selected_sqlite_image_batch_id"]=batch_id
+            st.text("Image ID: "+chosen)
+            st.text("원본 파일명: "+row["original_filename"])
+            st.caption(f"원본 크기 {row['width_px']} × {row['height_px']} px · 원본 비율 유지")
         st.json({key:row[key] for key in fields})
         opened_key="sqlite_opened_image_"+str(batch_id)+str(mode)
         if st.button("선택 파일 열기",key="sqlite_open_file_"+str(batch_id)+str(mode)):
@@ -535,22 +870,81 @@ def render_registered_images(provider,batch_id=None):
                 st.image(str(mock.asset(row["asset"])),width="stretch")
                 st.caption("Mock 예시 이미지 · 실제 등록 영상 아님")
             else:
-                path=Path(row["storage_path"]).resolve()
-                if path.is_file() and path.is_relative_to(provider.storage_root.resolve()):
-                    st.image(str(path),width="stretch")
-                else:
-                    st.info("로컬 저장소에서 표시할 수 없는 파일입니다.")
+                render_original_preview(provider,row,verify=detailed)
+
+
+def render_original_preview(provider,row,*,verify=True):
+    """Shared read-only preview for Batch and Image detail; never rewrites originals."""
+    try:
+        path=Path(row["storage_path"]).resolve()
+        if not path.is_file() or not path.is_relative_to(provider.storage_root.resolve()):
+            st.warning("로컬 저장소에서 원본 파일을 찾거나 표시할 수 없습니다.")
+        elif verify and path.name!=row["original_filename"]:
+            st.warning("저장 파일명과 원본 파일명이 일치하지 않아 미리보기를 중단했습니다.")
+        elif verify and hashlib.sha256(path.read_bytes()).hexdigest().lower()!=row["sha256"].lower():
+            st.warning("원본 SHA-256이 등록 정보와 일치하지 않아 미리보기를 중단했습니다.")
+        else:
+            st.image(str(path),width="stretch")
+    except (OSError,ValueError):
+        st.warning("이 이미지의 원본을 읽을 수 없습니다. 다른 이미지를 선택하세요.")
+
+
+def analysed_per_batch_wafer(provider):
+    """{(batch_id, wafer_id): images whose latest stored analysis belongs to that Batch × Wafer}."""
+    counts={}
+    for item in provider.latest_analysis().values():
+        key=(item["batch_id"],item.get("wafer_id"))
+        counts[key]=counts.get(key,0)+1
+    return counts
+
+
+def analysed_per_batch(provider):
+    """Images whose latest stored analysis belongs to each upload Batch (read-only)."""
+    counts={}
+    for item in provider.latest_analysis().values():
+        counts[item["batch_id"]]=counts.get(item["batch_id"],0)+1
+    return counts
+
+
+def wafer_summary(batches,analysed):
+    rows=[]
+    for wafer,group in batches.groupby("wafer_id",sort=True):
+        rows.append({"Wafer":wafer,"Batch 수":len(group),"등록 이미지 수":int(group["image_count"].sum()),
+                     "분석 결과 이미지 수":int(sum(analysed.get(b,0) for b in group["batch_id"]))})
+    return rows
 
 
 def render_batches(*,source="SQLite"):
     try:
         provider=_provider() if source=="SQLite" else None
+        batches=provider.batches() if provider else mock.batches()
+        if provider is None:
+            with st.expander("전체 등록 이미지 조회"):
+                render_registered_images(provider)
+            batch_table(batches,source=source)
+            return
+        if batches.empty:
+            st.info("등록된 SQLite Batch가 없습니다.")
+        else:
+            analysed=analysed_per_batch(provider)
+            # 1) Batch table: a 3-row-high scroll area holding every Batch (newest first).
+            batch_table(batches,source=source,analysed=analysed,visible_rows=3)
+            # 2) Wafer x effective exposure x PEB summary (same SQLite query as the accumulation table).
+            table=condition_accumulation(provider.batch_wafers(),analysed_per_batch_wafer(provider)).rename(columns={"Wafer":"Wafer ID"})
+            # TASK18-B-10A.2: a Wafer ID cell opens Wafer detail for exactly that row's 노광 × PEB condition
+            # (same single-cell pattern as the Image ID cells of the image table).
+            event=st.dataframe(table,hide_index=True,width="stretch",height=min(36*(len(table)+1)+2,146),
+                         key="dcc_wafer_conditions",on_select="rerun",selection_mode="single-cell",
+                         column_config={"Wafer ID":st.column_config.TextColumn("Wafer ID",
+                             help="Wafer ID 셀을 클릭하면 이 행의 노광·PEB 조건으로 Wafer 상세를 엽니다.")})
+            cells=event["selection"]["cells"] if event else []
+            if cells:
+                index,column=cells[-1]
+                if column=="Wafer ID" and isinstance(index,int) and 0<=index<len(table):
+                    row=table.iloc[index]
+                    open_wafer_detail(str(row["Wafer ID"]),str(row["노광"]),str(row["PEB (s)"]))
+        # 3) Full registered-image lookup at the bottom (unchanged feature and filters).
         with st.expander("전체 등록 이미지 조회"):
             render_registered_images(provider)
-        batches=provider.batches() if provider else mock.batches()
-        if batches.empty:
-            st.info("등록된 SQLite Batch 없음 · Mock Batch를 표시하지 않습니다.")
-            return
-        batch_table(batches,source=source)
     except (ValueError,OSError,RuntimeError,sqlite3.Error) as exc:
         _show_error("등록 목록 조회 실패.",exc)

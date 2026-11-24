@@ -24,9 +24,15 @@ def render(pages,active):
         for key in COMMON:
             st.page_link(pages[key],label=PAGE_SPECS[key][1],icon=PAGE_SPECS[key][3])
         st.divider()
-        if page_data_source(active,st.session_state)=="SQLite":
-            st.caption("● SQLITE · 이미지 등록 / 조회")
-            st.caption("Calibration · 계측 · YOLO · MLflow · Roboflow\n미연결 / 분석 결과 없음")
+        if active=="model_performance":
+            st.caption("● MLFLOW · 실험 기록 조회")
+            st.caption("읽기 전용 / Roboflow 연결 준비")
+        elif page_data_source(active,st.session_state)=="Records":
+            st.caption("● LOCAL RECORDS · 조회 / 편집")
+            st.caption("기록 관리 전용 / 실제 분석 미연결")
+        elif page_data_source(active,st.session_state)=="SQLite":
+            st.caption("● SQLITE · 운영 DB")
+            st.caption("등록·분석 결과 조회 / AI 결과는 잠정 (공식 채택 아님)")
         else:
-            st.caption("● MOCK DATA ONLY")
-            st.caption("Database · AI · MLflow · Roboflow\n미연결 / 실제 처리 없음")
+            st.caption("● 참고용 예시 화면")
+            st.caption("운영 SQLite 데이터가 아닌 고정 예시값")

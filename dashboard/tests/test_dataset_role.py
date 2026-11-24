@@ -10,7 +10,9 @@ from dashboard import data_provider as data
 
 class DatasetRoleTests(unittest.TestCase):
     def app(self):
-        at=AppTest.from_file(ROOT/"dashboard/app.py",default_timeout=30).run()
+        at=AppTest.from_file(ROOT/"dashboard/app.py",default_timeout=30)
+        at.session_state["data_control_selected_source"]="Mock"  # TASK18-B-8: Mock DCC only when explicitly selected.
+        at.run()
         at.switch_page("pages/data_control.py").run()
         self.assertEqual(len(at.exception),0)
         return at

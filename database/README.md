@@ -279,3 +279,26 @@ ZIP64/분할 ZIP/암호화 ZIP/비PNG 항목/중복 archive 경로/링크는 거
   명시적 저장 버튼으로 notes만 Transaction UPDATE합니다. 내부 Batch ID·자동 번호·이미지는 바뀌지 않습니다.
 - 목록은 기존 자동 표시명에 이름을 함께 표시하고 긴 이름만 축약합니다. 전체 이름은 Tooltip/상세에서 확인합니다.
 - 운영 DB에 자동 Migration/이름 입력/기존 레코드 변경을 수행하지 않습니다. 이 기능의 검증은 임시 DB에서만 수행합니다.
+
+
+## TASK 14 — Schema v3 PEB temperature
+
+- v1/v2 SQL은 보존합니다. v3는 `upload_batches.peb_temperature_c REAL NULL` 하나만 추가합니다.
+- PEB는 Batch 공통 공정 Metadata입니다. 같은 Wafer의 다른 Batch는 서로 다른 PEB를 가질 수 있습니다.
+- 노광은 기존 `wafers.process_run_id → process_runs` 관계와 단위를 유지합니다.
+- 과거 Batch의 PEB는 NULL이며 보간·기본 온도·자동 backfill을 하지 않습니다.
+- 숫자는 유한값만 허용하며, 시간은 이번 필드와 합치지 않습니다. PEB 시간 입력은 미구현입니다.
+- 기존 Batch 이름/notes, PK/FK/Index/Trigger, 7개 테이블의 기존 필드·레코드를 보존합니다.
+- Migration은 Dashboard 시작 시 자동 실행하지 않습니다. 모든 DB writer를 중지한 뒤 명시적으로 실행합니다.
+
+```powershell
+.\dashboard\.venv\Scripts\python.exe -B -m database.migrate_v3 --db runtime_data/database/ida.sqlite3 --backup runtime_data/database/ida.pre_peb_v3.sqlite3 --allow-operational
+```
+
+- 적용 전에 v2 스키마를 확인하고 SQLite backup API로 별도 백업을 생성·검증합니다.
+- 단일 Transaction에서 ALTER/버전 변경/전체 기존 필드 비교/무결성 검사를 수행합니다. 실패 시 Rollback합니다.
+- 재실행은 v3 검증만 하며 기존 PEB를 변경하지 않습니다. 백업 파일은 자동 덮어쓰지 않습니다.
+- 복구가 필요하면 모든 writer를 중지하고 새 등록이 있었는지 확인한 후, 실패 DB도 별도 보존하고 검증된 v2 백업을 원래 경로에 복원합니다.
+  v3 적용 후 추가 등록된 데이터가 있다면 과거 백업을 바로 덮어쓰지 말고 먼저 보존·대조해야 합니다.
+- `initialize_database_v3(path)`는 새 테스트/개발 DB 생성 API이며 기존 v2 DB를 자동 변경하지 않습니다.
+- SQLite 등록·조회는 v1/v2도 계속 지원하되 PEB 입력은 v3에서만 활성화됩니다.
