@@ -31,10 +31,10 @@ class SidebarDetailTests(unittest.TestCase):
         return at
 
     def test_common_menu_order_and_existing_experiment_route(self):
-        keys=["experiment_environment","critical_criteria","ai_usage","model_selection"]
+        keys=["experiment_environment","critical_criteria","model_selection"]
         start=COMMON.index("model_performance")+1
-        self.assertEqual(COMMON[start:start+4],keys)
-        self.assertEqual(COMMON[start+4],"settings")
+        self.assertEqual(COMMON[start:start+3],keys)
+        self.assertEqual(COMMON[start+3],"settings")
         self.assertEqual(PAGE_SPECS["experiment_environment"][0],"pages/experiment_environment.py")
         at=self.app()
         for page in ["main_home","data_control","inspection_analysis",*keys]:
@@ -75,10 +75,9 @@ class SidebarDetailTests(unittest.TestCase):
                              ["모델 후보","선정 지표","성능 비교","선정 이유","최종 모델 및 버전"])
         self.assertEqual(renderer.call_count,1)
 
-    def test_critical_records_and_ai_placeholder_tabs(self):
+    def test_critical_records_tabs(self):
         for key,labels in [
             ("critical_criteria",["측정 Critical 기준","결함 Critical 기준","Die / Row 판정","집계 / 제외 정책"]),
-            ("ai_usage",["Before & After AI","AI Tool"])
         ]:
             at=self.app(key)
             self.assertEqual([t.label for t in at.tabs],labels)
