@@ -27,7 +27,7 @@ NOT_EVALUATED = "NOT_EVALUATED"
 CRITICAL_DEFECTS = ("o", "s", "pd")
 REVIEW_DEFECTS = ("p", "sc")
 DEFECT_NAMES = {"o": "Open", "s": "Short", "pd": "Pattern Damage", "p": "Particle", "sc": "Scratch"}
-JUDGED_MODES = ("wafer_batch", "single_image")  # Repeatability/Lighting are not judged here.
+JUDGED_MODES = ("wafer_batch",)  # Repeatability/Lighting are not judged here; Single Images: I&A Image tab only.
 POSITIONS = ("lt", "c", "rb")
 
 

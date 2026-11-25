@@ -118,7 +118,7 @@ class PEBInputTests(unittest.TestCase):
         at=AppTest.from_file(upload_tests.ROOT/"dashboard/app.py",default_timeout=30).run()
         at.switch_page("pages/inspection_analysis.py").run()
         at.run();self.assertFalse(at.exception)  # TASK18-B-6: SQLite is the fixed Wafer Map source.
-        self.assertEqual([tab.label for tab in at.tabs],["Wafer / Image","선폭 / 오차율 / 결함","노광","PEB","Repeatability","Lighting"])  # TASK18-B-8: I&A tabs + nested process tabs
+        self.assertEqual([tab.label for tab in at.tabs],["Wafer","Image","선폭 / 오차율 / 결함","노광","PEB"])  # TASK18-B-8 · Image tab replaces Repeatability/Lighting: I&A tabs + nested process tabs
         self.assertTrue(any("필터 적용 이미지 3장" in row.value for row in at.caption))
         at.selectbox(key="ia_process_peb_filter").select(100.0).run()
         self.assertTrue(any("필터 적용 이미지 1장" in row.value for row in at.caption))
