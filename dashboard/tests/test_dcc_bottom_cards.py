@@ -59,8 +59,8 @@ class BottomCardTests(mw.MultiWaferV6Tests):
             self.assertEqual(found[C(exposure,None,peb)],len(self.sql_ids("W2",exposure,peb)),(exposure,peb))
         self.assertEqual(sum(found.values()),preview["image_count"])
         labels=[c["label"] for c in preview["conditions"]]
-        self.assertIn("노광 60 mJ/cm² · PEB 미입력",labels);self.assertIn("노광 60 mJ/cm² · PEB 120 s",labels)
-        self.assertIn("노광 60 mJ/cm² · PEB 220 s",labels)
+        self.assertIn("노광 60 s · PEB 미입력",labels);self.assertIn("노광 60 s · PEB 120 s",labels)
+        self.assertIn("노광 60 s · PEB 220 s",labels)
         self.assertNotIn("단위",json.dumps(labels,ensure_ascii=False))      # No unit is guessed.
         with self.assertRaises(ValueError):
             am.target_preview(self.p,"Wafer","W2",condition=C(99,None,1))   # Not a condition of this Wafer.
@@ -155,11 +155,11 @@ class BottomCardTests(mw.MultiWaferV6Tests):
         at.radio(key="dcc_analysis_scope").set_value("Batch").run()
         at.selectbox(key="dcc_analysis_target_batch").select(self.b1["batch_id"]).run()
         text=self.markdown(at)
-        self.assertIn("W2 · 노광 50 mJ/cm² · PEB 220 s · 4장",text);self.assertIn("W3 · 노광 60 mJ/cm² · PEB 미입력 · 2장",text)
+        self.assertIn("W2 · 노광 50 s · PEB 220 s · 4장",text);self.assertIn("W3 · 노광 60 s · PEB 미입력 · 2장",text)
         image=self.b3["image_ids"][0]
         at.radio(key="dcc_analysis_scope").set_value("Image").run()
         at.selectbox(key="dcc_analysis_target_image").select(image).run()
-        self.assertIn("W2 · 노광 60 mJ/cm² · PEB 120 s · 1장",self.markdown(at))
+        self.assertIn("W2 · 노광 60 s · PEB 120 s · 1장",self.markdown(at))
         self.assertEqual(at.session_state["dcc_analysis_preview"]["image_ids"],[image])
 
     # 12/13/14: progress on another page, run collected once, owner gets the result + duplicate guard.
@@ -176,7 +176,7 @@ class BottomCardTests(mw.MultiWaferV6Tests):
         home.session_state["_analysis_session_token"]=token
         home.run();self.assertFalse(home.exception,[e.value for e in home.exception])
         bars=[e.proto.text for e in home.get("progress")]
-        self.assertTrue(any(t.startswith("분석 중 · W2 · 노광 60 mJ/cm² · PEB 220 s · ") and "/2장" in t for t in bars),bars)
+        self.assertTrue(any(t.startswith("분석 중 · W2 · 노광 60 s · PEB 220 s · ") and "/2장" in t for t in bars),bars)
         dcc=self.wafer_app(condition=C(60.0,None,220.0))                       # Another session while running.
         self.assertTrue(dcc.button(key="dcc_analysis_run").disabled)
         self.assertIn("다른 분석이 실행 중",dcc.button(key="dcc_analysis_run").help)

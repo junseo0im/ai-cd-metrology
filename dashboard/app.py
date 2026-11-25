@@ -24,5 +24,8 @@ render(pages,active)
 from dashboard.components.waepi import render_waepi
 render_waepi()  # TASK18-B-17: floating '웨피' (before the page body: pages that st.stop() keep it).
 selected.run()
+from dashboard.components.waepi import sync as waepi_sync
+if st.session_state.get("_waepi_slot") is not None:
+    waepi_sync()  # TASK18-B-18: state changed by this page run is shown at once (no extra rerun).
 from dashboard.notifications import flush_toasts
 flush_toasts()  # Events raised by the page itself in this run.

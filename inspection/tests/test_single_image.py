@@ -214,6 +214,32 @@ class RunnerTests(unittest.TestCase):
         out = self.run_case(Defect([detection("pd", "HEURISTIC"), detection("pd")]))
         self.assertEqual(out["pd_policy"]["state"], "MODEL_PD_EXCLUDED")
 
+    # ---- r33 RULE source (TASK18-B-22) ----
+    def test_rule_derived_p_is_valid_and_metrology_runs(self):
+        p = {**detection("p", "RULE"), "team_source": "from_s", "derived_from_index": 0}
+        out = self.run_case(Defect([detection("s"), p]))
+        self.assertEqual(out["status"], "SUCCESS")
+        self.assertEqual(out["pd_policy"]["state"], "NO_PD")
+        self.assertEqual(self.native.calls, 1)
+        self.assertEqual(out["defect"]["detections"][1]["team_source"], "from_s")
+        self.assertEqual(out["defect"]["detections"][1]["derived_from_index"], 0)
+
+    def test_rule_pd_only_requires_review_without_metrology(self):
+        out = self.run_case(Defect([detection("pd", "RULE")]))
+        self.assertEqual(out["status"], "SKIPPED")
+        self.assertEqual(out["pd_policy"]["state"], "POLICY_REVIEW_REQUIRED")
+        self.assertEqual(self.native.calls, 0)
+
+    def test_rule_and_heuristic_pd_require_review(self):
+        out = self.run_case(Defect([detection("pd", "RULE"), detection("pd", "HEURISTIC")]))
+        self.assertEqual(out["pd_policy"]["state"], "POLICY_REVIEW_REQUIRED")
+        self.assertEqual(self.native.calls, 0)
+
+    def test_model_pd_takes_priority_over_rule_pd(self):
+        out = self.run_case(Defect([detection("pd", "RULE"), detection("pd")]))
+        self.assertEqual(out["pd_policy"]["state"], "MODEL_PD_EXCLUDED")
+        self.assertEqual(self.native.calls, 0)
+
     def test_defect_failure_does_not_imply_no_pd(self):
         out = self.run_case(Defect(change=lambda r: r.update(status="FAILED", error_code="MODEL_MISSING")))
         self.assertEqual(out["status"], "FAILED")

@@ -407,11 +407,19 @@ class SQLiteProvider:
                         "WHERE analysis_run_id IN (" + marks + ") ORDER BY analysis_run_id,measurement_index", list(runs)):
                     if width is not None:
                         runs[run_id][kind + "_widths_um"].append(width)
-                for run_id, code, confidence, source in connection.execute(
-                        "SELECT analysis_run_id,class_code,confidence,source FROM defect_detections WHERE analysis_run_id IN (" + marks +
+                for run_id, code, confidence, source, payload in connection.execute(
+                        "SELECT analysis_run_id,class_code,confidence,source,payload_json FROM defect_detections WHERE analysis_run_id IN (" + marks +
                         ") ORDER BY analysis_run_id,detection_index", list(runs)):
                     runs[run_id]["defect_classes"].append(code)
-                    runs[run_id]["defect_details"].append({"class_code": code, "confidence": confidence, "source": source})
+                    detail = {"class_code": code, "confidence": confidence, "source": source}
+                    try:   # r33 (TASK18-B-22): teammate source and S -> P derivation, when stored.
+                        stored = _json.loads(payload) if payload else {}
+                    except ValueError:
+                        stored = {}
+                    for key in ("team_source", "derived_from_index"):
+                        if key in stored:
+                            detail[key] = stored[key]
+                    runs[run_id]["defect_details"].append(detail)
                 for run_id, line_id, label, low, high, near in connection.execute(
                         "SELECT analysis_run_id,line_id,label,min_um,max_um,near_threshold FROM line_judgments "
                         "WHERE analysis_run_id IN (" + marks + ") ORDER BY analysis_run_id,line_id", list(runs)):

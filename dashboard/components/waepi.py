@@ -44,22 +44,27 @@ CSS = """
 .waepi-root { position: fixed; right: 20px; bottom: 18px; z-index: 990; pointer-events: none;
   display: flex; flex-direction: column; align-items: flex-end; gap: 4px; user-select: none; }
 .waepi-root.flip { flex-direction: column-reverse; }
-.waepi-bubble { pointer-events: none; max-width: 230px; padding: 6px 10px; border-radius: 12px;
+.waepi-bubble { pointer-events: none; max-width: 240px; padding: 6px 10px; border-radius: 12px;
   font: 600 12.5px/1.35 "Source Sans Pro", "Malgun Gothic", sans-serif;
   background: var(--st-background-color, #fff); color: var(--st-text-color, #172b46);
-  border: 1px solid rgba(120, 140, 170, .55); box-shadow: 0 2px 8px rgba(20, 40, 70, .18); white-space: nowrap; }
+  border: 1px solid rgba(120, 140, 170, .55); box-shadow: 0 2px 8px rgba(20, 40, 70, .18);
+  white-space: normal; word-break: keep-all; overflow-wrap: anywhere; }
+@media (max-width: 700px) { .waepi-bubble { max-width: 170px; font-size: 11.5px; } }
 .waepi-bubble[data-tone="running"] { border-color: #568ee9; }
 .waepi-bubble[data-tone="saving"] { border-color: #e0883e; }
 .waepi-bubble[data-tone="done"] { border-color: #35a86b; }
 .waepi-bubble[data-tone="error"] { border-color: #e56666; color: #c23b3b; }
 .waepi-bar { height: 4px; margin-top: 4px; border-radius: 2px; background: rgba(120, 140, 170, .25); overflow: hidden; }
 .waepi-bar > i { display: block; height: 100%; background: #568ee9; }
-.waepi-img { width: 76px; height: auto; pointer-events: none; display: block;
+.waepi-img { width: 95px; height: auto; pointer-events: none; display: block;
   filter: drop-shadow(0 2px 3px rgba(20, 40, 70, .25)); }
+.waepi-root { transition: opacity .15s ease; }
+.waepi-root.peek { opacity: .25; }   /* Pointer over its area (not on the character): content underneath stays visible. */
 .waepi-root.dragging .waepi-img { filter: drop-shadow(0 4px 8px rgba(20, 40, 70, .35)); }
 """
 
 JS = r"""
+const GREETING = "안녕하세요 저는 '웨피'입니다. 작업을 시작해주세요";
 export default function (component) {
   const { data, parentElement } = component;
   const KEY = "ida_waepi_position";
@@ -77,7 +82,7 @@ export default function (component) {
   const bar = root.querySelector(".waepi-bar");
   // ---- status (every update) ----
   bubble.dataset.tone = (data && data.tone) || "idle";
-  bubble.querySelector("span").textContent = (data && data.text) || "분석 대기 중";
+  bubble.querySelector("span").textContent = (data && data.text) || GREETING;
   const pct = data && typeof data.pct === "number" ? data.pct : null;
   bar.hidden = pct === null;
   if (pct !== null) bar.querySelector("i").style.width = Math.max(0, Math.min(100, pct)) + "%";
@@ -133,6 +138,9 @@ export default function (component) {
     }
     const over = onCharacter(e.clientX, e.clientY);
     if (over !== hover) { hover = over; document.documentElement.style.cursor = over ? "grab" : ""; }
+    const box = root.getBoundingClientRect();
+    const inside = e.clientX >= box.left && e.clientX <= box.right && e.clientY >= box.top && e.clientY <= box.bottom;
+    root.classList.toggle("peek", inside && !over);
   };
   const up = (e) => {
     if (!drag) return;
@@ -213,7 +221,46 @@ def session_state_view():
         state = _finished_state(last)
         if state and time.time() - first < DONE_SECONDS:
             return {"text": state[0], "tone": state[1], "pct": None}
-    return {"text": "분석 대기 중", "tone": "idle", "pct": None}
+    flow = _registration_view()
+    if flow:
+        return flow
+    return {"text": GREETING, "tone": "idle", "pct": None}
+
+
+GREETING = "안녕하세요 저는 '웨피'입니다. 작업을 시작해주세요"
+HOLD_SECONDS = 12  # A registration success/failure line stays at least this long (no sleep, timestamp only).
+
+
+def event(kind):
+    """Mark a real UI event of this session: 'registered' | 'register_failed' | 'analysis_started'."""
+    st.session_state["_waepi_event"] = {"kind": kind, "time": time.time()}
+
+
+def _registration_view():
+    """Upload/registration states before an analysis is started (session-local, read-only)."""
+    happened = st.session_state.get("_waepi_event") or {}
+    kind, since = happened.get("kind"), time.time() - happened.get("time", 0)
+    bundle = st.session_state.get("sqlite_uploads") or {}
+    pending = bool(bundle.get("inputs")) and "registered" not in bundle
+    if kind == "register_failed" and since < HOLD_SECONDS:
+        return {"text": "DB 등록 실패 · 오류 내용을 확인해 주세요", "tone": "error", "pct": None}
+    if pending:                                   # Files selected/dropped, not yet registered.
+        return {"text": "이미지 확인 중입니다", "tone": "running", "pct": None}
+    if kind == "registered":
+        if since < HOLD_SECONDS:
+            return {"text": "이미지 DB 등록 완료", "tone": "done", "pct": None}
+        return {"text": "분석 실행 전", "tone": "idle", "pct": None}
+    return None
+
+
+def sync():
+    """After a full page run: show a changed state at once (the 2 s fragment would otherwise catch up)."""
+    try:
+        view = session_state_view()
+        if view != st.session_state.get("_waepi_last_view"):
+            push(view)
+    except Exception:
+        pass
 
 
 def _mount(slot, view, key):
@@ -222,6 +269,7 @@ def _mount(slot, view, key):
     try:
         with slot.container():
             _COMPONENT(data=view, key=key, width="content", height="content")
+        st.session_state["_waepi_last_view"] = view
     except StreamlitAPIException as exc:
         if "not registered" not in str(exc):
             raise
@@ -242,9 +290,16 @@ def _waepi_fragment():
         slot.empty()
 
 
+def enabled():
+    """Server diagnostic switch IDA_WAEPI_DISABLED=1 (used for the ON/OFF performance comparison)."""
+    import os
+    return os.environ.get("IDA_WAEPI_DISABLED") != "1" and _image_uri() is not None
+
+
 def render_waepi():
     """Mounted once per page run from app.py (before the page body, so st.stop() pages keep it)."""
-    if _image_uri() is None:
+    if not enabled():
+        st.session_state["_waepi_slot"] = None
         return
     with st.container(key="waepi_host"):
         _waepi_fragment()

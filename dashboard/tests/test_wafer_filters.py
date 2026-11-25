@@ -48,11 +48,11 @@ class PureFilterTests(unittest.TestCase):
     def test_01_exposure_and_peb_never_mix(self):
         scope=self.iw.apply_condition_scope
         self.assertTrue(scope(self.images)["mixed"])
-        only60=scope(self.images,exposure="60 mJ/cm²",peb="PEB 미입력")
+        only60=scope(self.images,exposure="60 s",peb="PEB 미입력")
         self.assertFalse(only60["mixed"]);self.assertEqual({r["image_id"] for r in only60["images"]},{"a","b","c"})
         die=self.die11(only60["images"])
         self.assertEqual((die["assessment"]["decision"],die["assessment"]["critical_defects"]),("PASS",[]))  # 70/PEB defects absent.
-        only70=scope(self.images,exposure="70 mJ/cm²")
+        only70=scope(self.images,exposure="70 s")
         die70=self.die11(only70["images"])
         self.assertEqual((die70["assessment"]["decision"],die70["assessment"]["expected_fail"]),("PENDING",True))
         peb110=scope(self.images,peb="110 s")
@@ -126,7 +126,7 @@ class LiveDataFilterTests(unittest.TestCase):
         from dashboard.die_assessment import rate_text
         from dashboard.components.inspection_wafer import select_die
         at=self.ia("W1")
-        self.assertEqual(at.selectbox(key="ia_wafer_exposure_SQLite_W1").options,["60 mJ/cm²"])
+        self.assertEqual(at.selectbox(key="ia_wafer_exposure_SQLite_W1").options,["60 s"])
         self.assertEqual(at.selectbox(key="ia_wafer_peb_SQLite_W1").options,["PEB 미입력"])
         batch=at.selectbox(key="ia_wafer_batch_SQLite_W1")
         self.assertEqual(len(batch.options)-1,15)                                    # 전체 + 15 W1 Batches.

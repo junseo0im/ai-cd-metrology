@@ -808,7 +808,7 @@ def _condition_selection(conditions,wafer_id):
     return st.selectbox("공정조건 (노광 · PEB)",list(options),format_func=lambda c:options[c],key=key,
                         index=0 if len(options)==1 else None,disabled=not options,
                         placeholder=f"조건 {len(options)}개 중 선택 필요",
-                        help="선택한 Wafer × 노광 × PEB 조건의 이미지만 분석 대상이 됩니다. 노광 단위 미기록은 사용자 확인 단위 mJ/cm²로 표시합니다 (DB 값 변경 없음).")
+                        help="선택한 Wafer × 노광 × PEB 조건의 이미지만 분석 대상이 됩니다. 노광 조건은 시간(초, s) 단위로 표시합니다 (DB 값 변경 없음).")
 
 
 def _extra_images(provider,primary):
@@ -996,6 +996,8 @@ def render_analysis_management(source):
                 _ACTIVE["meta"]={"total":len(image_ids),**(_ACTIVE.get("meta") or {}),
                                  "target":str(target),"owner":token,"scope":scope}
                 _ACTIVE["waiter"]=token
+            from dashboard.components.waepi import event as waepi_event
+            waepi_event("analysis_started")
             notify("분석 시작",str(target),"실행 중",count=len(image_ids),level="info",
                    key=("analysis_start",selection_token(expected),time.time()))
             with box_d:

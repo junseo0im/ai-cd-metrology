@@ -23,6 +23,8 @@ def fetch(connection, operation, identifier="", limit=50, token="", path="", rev
         return client.experiments()
     if operation == "runs":
         return client.runs(identifier, limit, token)
+    if operation == "all_runs":
+        return client.all_runs(identifier)
     if operation == "run":
         return client.run(identifier)
     if operation == "artifacts":
@@ -269,26 +271,51 @@ def _comparison_display(runs, metrics, connection):
     return styled
 
 
+def _connection_and_experiments(revision):
+    try:
+        settings = {"mlflow": dict(st.secrets.get("mlflow", {}))}
+    except (FileNotFoundError, KeyError):
+        settings = {}
+    connection = provider.connection_from_settings(settings)
+    return connection, fetch(connection, "experiments", revision=revision)
+
+
+HIGHLIGHT = "background-color: rgba(53,168,107,.22); font-weight: 700"
+
+
+def _render_comparison(experiment_name, runs):
+    """TASK18-B-19: the experiment's default comparison table, every evaluated model/condition at once."""
+    from dashboard.components import mlflow_tables
+    table = mlflow_tables.build(experiment_name, runs)
+    frame = table["frame"]
+    if frame.empty:
+        st.info("비교할 평가 Run이 없습니다.")
+        return table
+    best = set(table["best"])
+    styled = frame.style.apply(lambda column: [HIGHLIGHT if (index, column.name) in best else ""
+                                               for index in range(len(column))], axis=0)
+    config = {column: st.column_config.TextColumn(column, help=text) for column, text in table["help"].items()
+              if column in frame.columns}
+    st.dataframe(styled, hide_index=True, width="stretch", key="mf_default_table", column_config=config,
+                 height=min(35 * (len(frame) + 1) + 3, 560))
+    for note in table["notes"]:
+        st.caption(note.replace("굵게:", "강조:"))
+    return table
+
+
 def render_mlflow_browser():
-    """Compact presentation over the unchanged read-only provider/cache."""
-    st.subheader("실험 및 모델 성능 조회")
-    st.caption("MLflow 실제 기록 · 읽기 전용 · 모델 학습·추론·SQLite 분석 결과와 별개")
-    experiment_control, metric_control, refresh_control = st.columns([3, 3, 1], vertical_alignment="bottom")
+    """Experiment 선택 → 모델 비교표 → MLflow 상세 조회 (TASK18-B-19). Read-only over the cached provider."""
+    experiment_control, refresh_control = st.columns([4, 1], vertical_alignment="bottom")
     with refresh_control:
         if st.button("새로 조회", key="mf_refresh", width="stretch"):
             st.session_state["_mf_revision"] = st.session_state.get("_mf_revision", 0) + 1
     revision = st.session_state.get("_mf_revision", 0)
     try:
-        try:
-            settings = {"mlflow": dict(st.secrets.get("mlflow", {}))}
-        except (FileNotFoundError, KeyError):
-            settings = {}
-        connection = provider.connection_from_settings(settings)
         with st.spinner("실험 목록 조회 중"):
-            experiments = fetch(connection, "experiments", revision=revision)
+            connection, experiments = _connection_and_experiments(revision)
     except provider.MLflowError as error:
         st.warning("조회 실패 · " + str(error))
-        st.info("서버 관리자는 Tracking URI·네트워크·읽기 권한을 확인하세요. 인증 설정은 서버 환경변수 또는 secrets에서 관리합니다.")
+        st.caption("서버 관리자: Tracking URI·네트워크·읽기 권한 확인 (인증은 서버 환경변수 또는 secrets).")
         return
     if not experiments:
         st.info("조회 가능한 Experiment가 없습니다.")
@@ -298,89 +325,105 @@ def render_mlflow_browser():
         st.session_state.pop("mf_experiment", None)
     with experiment_control:
         exp_id = st.selectbox("Experiment 선택", list(by_id),
-                             format_func=lambda value: by_id[value]["name"], key="mf_experiment")
+                              format_func=lambda value: by_id[value]["name"], key="mf_experiment")
     experiment = by_id[exp_id]
-    query_info = st.expander("조회 정보", expanded=False)
-    with query_info:
+    try:
+        with st.spinner("Run 조회 중"):
+            everything = fetch(connection, "all_runs", exp_id, revision=revision)
+    except provider.MLflowError as error:
+        st.warning("조회 실패 · " + str(error))
+        return
+    runs = [run for run in everything.get("runs", [])
+            if str(run.get("info", {}).get("experiment_id")) == exp_id and provider.run_id(run)]
+    runs.sort(key=lambda run: run.get("info", {}).get("start_time") or 0, reverse=True)
+    if not runs:
+        st.info("이 Experiment에 기록된 Run이 없습니다.")
+        table = None
+    else:
+        table = _render_comparison(experiment["name"], runs)
+        if everything.get("truncated"):
+            st.caption(f"Run이 많아 최근 {len(runs)}개까지 표시합니다.")
+    with st.expander("MLflow 상세 조회", expanded=False, key="mf_details_" + exp_id, on_change="rerun") as details:
+        if details.open:
+            _render_details(connection, experiments, experiment, exp_id, revision, table)
+
+
+def _render_details(connection, experiments, experiment, exp_id, revision, table):
+    """The former browser (metric selector, graph, extra metrics, raw keys, Run detail), collapsed by default."""
+    tab_names = ["Metric 비교", "Run 상세정보"]
+    extra = (table or {}).get("extra", {})
+    if extra.get("classes") is not None and not extra["classes"].empty:
+        tab_names.append("클래스별 AP@50 · Recall")
+    if extra.get("connection"):
+        tab_names.append("연결 확인 Run")
+    tab_names.append("조회 정보")
+    tabs = dict(zip(tab_names, st.tabs(tab_names)))
+    with tabs["조회 정보"]:
         st.caption("Tracking Server: " + connection.tracking_uri + " · 조회 캐시 최대 60초")
         st.text("Experiment: " + experiment["name"] + " · ID " + exp_id)
         st.caption(f"조회 가능한 활성 Experiment {len(experiments)}개")
         limit = st.selectbox("페이지당 Run 수", [25, 50, 100, 200], index=1, key="mf_limit")
     tokens = _pager("runs", (exp_id, limit, revision))
     try:
-        with st.spinner("Run 조회 중"):
-            response = fetch(connection, "runs", exp_id, limit, tokens[-1], revision=revision)
+        response = fetch(connection, "runs", exp_id, limit, tokens[-1], revision=revision)
     except provider.MLflowError as error:
         st.warning("조회 실패 · " + str(error))
         return
     runs = [run for run in response.get("runs", [])
             if str(run.get("info", {}).get("experiment_id")) == exp_id and provider.run_id(run)]
     runs.sort(key=lambda run: run.get("info", {}).get("start_time") or 0, reverse=True)
-    st.caption(f"현재 페이지 Run {len(runs)}개 · 최신순 · 읽기 전용 조회 완료")
-    with query_info:
-        st.caption("전체 Run 수는 미집계입니다. 비교 범위는 현재 조회 페이지입니다.")
+    with tabs["조회 정보"]:
         if runs:
             statuses = pd.Series([run.get("info", {}).get("status") or "미기록" for run in runs]).value_counts()
             st.caption("실행 상태: " + ", ".join(f"{key} {value}" for key, value in statuses.items()))
-            st.caption("현재 페이지 최신 시작 시각: " + provider.recorded_time(runs[0].get("info", {}).get("start_time")) + " · UTC")
         _page_buttons("runs", tokens, response.get("next_page_token", ""))
+    if "클래스별 AP@50 · Recall" in tabs:
+        with tabs["클래스별 AP@50 · Recall"]:
+            st.dataframe(extra["classes"], hide_index=True, width="stretch", key="mf_class_table")
+    if "연결 확인 Run" in tabs:
+        with tabs["연결 확인 Run"]:
+            st.dataframe(pd.DataFrame([{"Run 이름": provider.run_name(run), "Run ID": provider.run_id(run),
+                                        "기록 Metric": ", ".join(sorted(provider.pairs(run, "metrics"))) or "미기록"}
+                                       for run in extra["connection"]]), hide_index=True, width="stretch")
     if not runs:
-        with metric_control:
-            st.selectbox("비교 Metric", [], disabled=True, key="mf_empty_metric")
-        st.info("이 페이지에 조회된 Run이 없습니다.")
+        with tabs["Metric 비교"]:
+            st.info("이 페이지에 조회된 Run이 없습니다.")
         return
     labels = provider.run_labels(runs)
     scope = f"{exp_id}_{len(tokens)}_{limit}_{revision}"
     metric_key = "mf_metric_" + scope
     keys = sorted({key for run in runs for key in provider.pairs(run, "metrics")})
-    key = None
-    with metric_control:
+    with tabs["Metric 비교"]:
+        st.caption(f"현재 페이지 Run {len(runs)}개 · 원본 Metric Key 그대로 표시")
+        key = None
         if keys:
             if st.session_state.get(metric_key) not in keys:
                 st.session_state[metric_key] = _default_metric(keys, experiment["name"])
             key = st.selectbox("비교 Metric", keys, key=metric_key)
             st.caption(_metric_description(experiment["name"], key))
+            st.caption(provider.metric_note(experiment["name"], key))
+            figure = _comparison_figure(runs, key)
+            recorded, missing, invalid = _metric_counts(runs, key)
+            st.caption(f"기록값 {recorded}개 · 미기록 Run {missing}개 · 유효하지 않은 값 {invalid}개 · 미기록은 0으로 대체하지 않음")
+            if figure is not None:
+                st.plotly_chart(figure, width="stretch", key="mf_metric_chart",
+                                config={"displayModeBar": False, "scrollZoom": False, "responsive": True})
+            else:
+                st.info("선택한 Metric의 유효한 수치가 없습니다.")
         else:
-            st.selectbox("비교 Metric", [], disabled=True, key="mf_empty_metric")
-    st.subheader("모델 성능 비교")
-    if key is not None:
-        st.caption(provider.metric_note(experiment["name"], key))
-        figure = _comparison_figure(runs, key)
-        recorded, missing, invalid = _metric_counts(runs, key)
-        st.caption(f"기록값 {recorded}개 · 미기록 Run {missing}개 · 유효하지 않은 값 {invalid}개 · 미기록은 0으로 대체하지 않음")
-        if figure is not None:
-            st.plotly_chart(figure, width="stretch", key="mf_metric_chart",
-                            config={"displayModeBar": False, "scrollZoom": False, "responsive": True})
-        else:
-            st.info("선택한 Metric의 유효한 수치가 없습니다.")
-        st.caption(_comparison_guidance(experiment["name"], key))
-    else:
-        st.info("조회된 Run에 기록된 Metric이 없습니다.")
-    st.subheader("모델 비교표")
-    table_keys = []
-    if key is not None:
-        extra_options = [candidate for candidate in keys if candidate != key]
-        table_key = "mf_table_metrics_" + scope
-        if table_key in st.session_state:
-            st.session_state[table_key] = [value for value in st.session_state[table_key]
-                                           if value in extra_options][:7]
-        extra = st.multiselect("추가 비교 Metric", extra_options,
-                               max_selections=7, key=table_key)
-        table_keys = [key] + extra
-        st.caption("그래프의 선택 Metric은 항상 포함합니다. 추가 Metric은 최대 7개이며 원래 기록 단위를 유지합니다.")
-    if key is not None:
-        st.caption(f"선택 Metric 미기록 Run {missing}개 · 실제 기록값 0과 구분합니다.")
-    st.dataframe(_comparison_display(runs, table_keys, connection), hide_index=True, width="stretch",
-                 key="mf_comparison_table",
-                 column_config={"Run": st.column_config.TextColumn("Run 이름", width="large"),
-                                "MLflow 열기": st.column_config.LinkColumn("MLflow", display_text="미기록 · MLflow에서 확인")})
-    st.caption("전체 Run 이름은 표에서, 전체 ID·시작/종료 시각은 Run 상세정보에서 확인합니다. 미기록 값은 ‘미기록’으로 표시합니다.")
-    if key is not None and missing:
-        st.caption("Metric 추가는 기존 학습·평가 코드 또는 MLflow 로깅 API를 통해 기록해야 할 수 있습니다.")
-        if any(key not in provider.pairs(run, "metrics") and not _mlflow_run_url(connection, run) for run in runs):
-            st.caption("일부 Run의 웹 상세 URL은 확인되지 않아 링크를 제공하지 않습니다.")
-    if experiment["name"] == "IDA_Width_Measurement":
-        st.caption("stability/success_rate는 측정 행 기준 비율입니다. GT 대상 일치율·이미지 검출 성공률과 구분합니다.")
-    with st.expander("Run 상세정보", expanded=False, key="mf_detail_" + scope, on_change="rerun") as detail:
-        if detail.open:
-            _render_run_detail(connection, experiment, runs, labels, revision, scope)
+            st.info("조회된 Run에 기록된 Metric이 없습니다.")
+        table_keys = []
+        if key is not None:
+            extra_options = [candidate for candidate in keys if candidate != key]
+            table_key = "mf_table_metrics_" + scope
+            if table_key in st.session_state:
+                st.session_state[table_key] = [value for value in st.session_state[table_key]
+                                               if value in extra_options][:7]
+            extra_metrics = st.multiselect("추가 비교 Metric", extra_options, max_selections=7, key=table_key)
+            table_keys = [key] + extra_metrics
+        st.dataframe(_comparison_display(runs, table_keys, connection), hide_index=True, width="stretch",
+                     key="mf_comparison_table",
+                     column_config={"Run": st.column_config.TextColumn("Run 이름", width="large"),
+                                    "MLflow 열기": st.column_config.LinkColumn("MLflow", display_text="미기록 · MLflow에서 확인")})
+    with tabs["Run 상세정보"]:
+        _render_run_detail(connection, experiment, runs, labels, revision, scope)

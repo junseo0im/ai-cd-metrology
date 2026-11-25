@@ -1,0 +1,12 @@
+{
+  "rule_version": "2026-11-v1",
+  "edge_basis": "inner",
+  "measurement_type": "line",
+  "rules": [
+    {"label": "pn", "op": "<=", "um": 8.0, "statistic": "min"},
+    {"label": "pt", "op": ">=", "um": 12.0, "statistic": "max"}
+  ],
+  "near_threshold_um": 0.2,
+  "pitch_um": 20.0,
+  "pitch_tolerance_um": 2.0
+}

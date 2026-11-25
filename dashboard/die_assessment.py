@@ -79,7 +79,8 @@ def assess_image(item):
     result["defects"] = details
     result["critical_defects"] = sorted({d["class_code"] for d in model if d["class_code"] in CRITICAL_DEFECTS})
     review_defects = sorted({d["class_code"] for d in model if d["class_code"] in REVIEW_DEFECTS})
-    result["heuristic_pd"] = any(d.get("source") == "HEURISTIC" and d["class_code"] == "pd" for d in details)
+    # Non-model PD (HEURISTIC, or r33 RULE PD: same POLICY_REVIEW policy, TASK18-B-22).
+    result["heuristic_pd"] = any(d.get("source") in ("HEURISTIC", "RULE") and d["class_code"] == "pd" for d in details)
     defect_ok = item.get("defect_status") == "SUCCESS"
     if result["critical_defects"]:
         result["defect_level"] = "UNUSABLE"

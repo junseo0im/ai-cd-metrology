@@ -1,0 +1,30 @@
+{
+  "model_path": "runtime_data/models/defect/rfdetr_seg_small_v2_t1/weights.onnx",
+  "model_sha256": "858962c228d5eb419e5a58dea699045b030d3e09c796bcd0c3fc960794733e52",
+  "model_version": "rfdetr-v8tqh/-wdlu9-2-rfdetr-seg-small-t1",
+  "input_shape": [
+    1,
+    3,
+    384,
+    384
+  ],
+  "logit_class_names": [
+    "background_class83422",
+    "o",
+    "p",
+    "pd",
+    "s",
+    "sc"
+  ],
+  "background_index": 0,
+  "mean": [
+    0.485,
+    0.456,
+    0.406
+  ],
+  "std": [
+    0.229,
+    0.224,
+    0.225
+  ]
+}

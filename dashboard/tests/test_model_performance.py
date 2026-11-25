@@ -35,12 +35,24 @@ class ModelPerformanceTests(unittest.TestCase):
         self.gradio_env = patch.dict("os.environ", {"IDA_ROBOFLOW_GRADIO_URL": ""})
         self.gradio_env.start()
         self.addCleanup(self.gradio_env.stop)
+        # TASK18-B-19: the former browser now lives in the collapsed 'MLflow 상세 조회' (lazy). AppTest cannot
+        # click a tracked expander, so tests open it by default unless self.details_open is False.
+        import streamlit as st
+        native = st.expander
+        self.details_open = True
+        def expander(label, *args, **kwargs):
+            if label == "MLflow 상세 조회":
+                kwargs["expanded"] = self.details_open
+            return native(label, *args, **kwargs)
+        self.expander_patch = patch("dashboard.components.mlflow.st.expander", side_effect=expander)
+        self.expander_patch.start()
+        self.addCleanup(self.expander_patch.stop)
 
     def fetch(self, connection, operation, identifier="", limit=50, token="", path="", revision=0):
         self.calls.append((operation, identifier, token, path))
         if operation == "experiments":
             return self.experiments
-        if operation == "runs":
+        if operation in ("runs", "all_runs"):
             if identifier == "42":
                 return {"runs": []}
             return {"runs": self.runs + [make_run("other-exp", exp="42")]}
@@ -59,25 +71,20 @@ class ModelPerformanceTests(unittest.TestCase):
 
     @contextmanager
     def expanded_detail(self):
-        # AppTest has no tracked-expander interaction API in Streamlit 1.64.
-        # Exercise its child controls with the native expander opened by default.
-        import streamlit as st
-        native = st.expander
-        def expander(label, *args, **kwargs):
-            if label == "Run 상세정보":
-                kwargs["expanded"] = True
-            return native(label, *args, **kwargs)
-        with patch("dashboard.components.mlflow.st.expander", side_effect=expander):
-            yield
+        # Run detail is now a tab inside 'MLflow 상세 조회', which tests open by default (see setUp).
+        yield
 
     def test_tabs_real_data_controls_and_disconnected_roboflow(self):
         before = set(sys.modules)
         at = self.app()
-        self.assertEqual([tab.label for tab in at.tabs], ["MLflow", "Roboflow"])
+        self.assertEqual([tab.label for tab in at.tabs if tab.label in ("MLflow", "Roboflow")], ["MLflow", "Roboflow"])
+        self.assertIn("Metric 비교", [tab.label for tab in at.tabs])            # Former browser, inside 'MLflow 상세 조회'.
         self.assertEqual(at.session_state["active_page_key"], "model_performance")
         self.assertEqual(at.selectbox(key="mf_experiment").options,
                          ["IDA_Width_Measurement", "another-experiment"])
-        self.assertTrue(any("연결 준비 중" in row.value for row in at.info))
+        self.assertTrue(any("연결 준비 중" in row.value for row in at.caption))
+        self.assertIn("별도 Gradio 실험 앱으로 실행하기 (선택)", [e.label for e in at.expander])
+        self.assertTrue(any("RF-DETR 결함 검출 시연" == s.value for s in at.subheader))
         self.assertTrue(any("Tracking Server" in row.value for row in at.caption))
         self.assertTrue(any("GUEST" in str(row.proto) for row in at.get("popover")))
         self.assertFalse(any("roboflow_app" in name for name in set(sys.modules) - before))
@@ -91,7 +98,7 @@ class ModelPerformanceTests(unittest.TestCase):
             at = self.app()
             frames = at.get("iframe")
             self.assertFalse(frames)                                   # Nothing listens on that port.
-            self.assertTrue(any("실행 중이 아닙니다" in row.value for row in at.info))
+            self.assertTrue(any("실행 중이 아닙니다" in row.value for row in at.caption))
             self.assertTrue(any("roboflow_app" in row.value and "app.py" in row.value for row in at.markdown))
             with patch("urllib.request.urlopen") as opened:
                 opened.return_value.__enter__.return_value.status = 200
@@ -121,11 +128,13 @@ class ModelPerformanceTests(unittest.TestCase):
         self.assertTrue(any("기록값 1개" in row.value for row in at.caption))
 
     def test_run_details_artifact_directory_browsing_and_no_download(self):
+        self.details_open = False
         at = self.app()
         self.assertFalse(any(call[0] in {"run", "artifacts"} for call in self.calls))
-        self.assertFalse(next(item for item in at.expander if item.label == "Run 상세정보").proto.expanded)
+        self.assertFalse(next(item for item in at.expander if item.label == "MLflow 상세 조회").proto.expanded)
         with self.expanded_detail():
-            at.session_state["mf_detail_9_1_50_0"] = True
+            self.details_open = True
+            at.session_state["mf_details_9"] = True
             at.run()
             self.assertFalse(at.exception)
             self.assertTrue(all(label in [tab.label for tab in at.tabs] for label in ["Parameters", "Metrics", "Tags"]))
@@ -164,7 +173,7 @@ class ModelPerformanceTests(unittest.TestCase):
         self.assertFalse(at.exception)
         self.assertTrue(any("MLflow 연결 실패" in row.value for row in at.warning))
         self.assertEqual([tab.label for tab in at.tabs], ["MLflow", "Roboflow"])
-        self.assertTrue(any("연결 준비 중" in row.value for row in at.info))
+        self.assertTrue(any("연결 준비 중" in row.value for row in at.caption))
         self.assertTrue(any('모델 성능' in row.value for row in at.sidebar.markdown))
 
     def test_pagination_refresh_and_run_identity(self):
@@ -196,15 +205,17 @@ class ModelPerformanceTests(unittest.TestCase):
         for key in ["stability/success_rate", "custom/score", "test/mae_um"]:
             at.selectbox(key="mf_metric_9_1_50_0").select(key).run()
             self.assertFalse(at.exception)
-            table = next(item.value for item in at.dataframe if "Run" in item.value)
+            table = next(item.value for item in at.dataframe if "Parameter 요약" in item.value)
             self.assertEqual(table.columns[1], key)
             self.assertNotIn(key, at.multiselect(key="mf_table_metrics_9_1_50_0").options)
 
     def test_run_change_resets_artifact_scope_and_closed_detail_avoids_requests(self):
+        self.details_open = False
         at = self.app()
         self.assertFalse(any(call[0] in {"run", "artifacts"} for call in self.calls))
         with self.expanded_detail():
-            at.session_state["mf_detail_9_1_50_0"] = True
+            self.details_open = True
+            at.session_state["mf_details_9"] = True
             at.run()
             at.selectbox(key="mf_artifact_folder_aaaaaaaa1111_").select("results").run()
             at.button(key="mf_artifact_open").click().run()
@@ -213,7 +224,8 @@ class ModelPerformanceTests(unittest.TestCase):
             self.assertEqual([row.value for row in at.code], ["bbbbbbbb2222"])
             self.assertEqual(at.session_state["_mf_artifact_path"], "")
         self.calls.clear()
-        at.session_state["mf_detail_9_1_50_0"] = False
+        self.details_open = False
+        at.session_state["mf_details_9"] = False
         at.run()
         self.assertFalse(any(call[0] in {"run", "artifacts"} for call in self.calls))
 
@@ -221,24 +233,21 @@ class ModelPerformanceTests(unittest.TestCase):
         other = make_run("cccccccc3333", exp="42", metrics={"train/accuracy": .999, "val/macro_f1": .8})
         original = self.fetch
         def alternate(connection, operation, identifier="", limit=50, token="", path="", revision=0):
-            if operation == "runs" and identifier == "42":
+            if operation in ("runs", "all_runs") and identifier == "42":
                 return {"runs": [other]}
             if operation == "run" and identifier == "cccccccc3333":
                 return other
             return original(connection, operation, identifier, limit, token, path, revision)
         with patch("dashboard.components.mlflow.fetch", side_effect=alternate):
             at = self.app()
-            at.session_state["mf_detail_9_1_50_0"] = True
-            at.run()
             at.selectbox(key="mf_experiment").select("42").run()
             self.assertFalse(at.exception)
             metric = at.selectbox(key="mf_metric_42_1_50_0")
             self.assertEqual(metric.value, "val/macro_f1")
             self.assertNotIn("test/mae_um", metric.options)
-            self.assertEqual(len(at.code), 0)
-            at.session_state["mf_detail_42_1_50_0"] = True
-            at.run()
-            self.assertEqual([row.value for row in at.code], ["cccccccc3333"])
+            self.assertEqual([row.value for row in at.code], ["cccccccc3333"])   # Detail follows the experiment.
+            table = next(item.value for item in at.dataframe if "Run 이름" in item.value)   # Generic default table.
+            self.assertEqual(list(table["Run"]), ["cccccccc"])
 
 
     def test_metric_help_updates_and_unknown_definitions_stay_unregistered(self):
@@ -258,7 +267,7 @@ class ModelPerformanceTests(unittest.TestCase):
         self.runs = [make_run("a" * 32, metrics={"custom/score": 0}),
                      make_run("b" * 32)]
         at = self.app()
-        element = next(row for row in at.dataframe if "Run" in row.value)
+        element = next(row for row in at.dataframe if "Parameter 요약" in row.value)
         raw = element.value
         self.assertEqual(raw["custom/score"].iloc[0], 0)
         self.assertTrue(raw["custom/score"].isna().iloc[1])
@@ -270,7 +279,7 @@ class ModelPerformanceTests(unittest.TestCase):
                          provider.DEFAULT_TRACKING_URI + "/#/experiments/9/runs/" + "b" * 32)
         columns = json.loads(element.proto.columns)
         self.assertEqual(columns["MLflow 열기"]["type_config"]["type"], "link")
-        self.assertTrue(any("선택 Metric 미기록 Run 1개" in row.value for row in at.caption))
+        self.assertTrue(any("미기록 Run 1개" in row.value for row in at.caption))
 
     def test_query_failure_never_becomes_missing_data(self):
         with patch("dashboard.components.mlflow.fetch", side_effect=provider.MLflowError("연결 오류")):

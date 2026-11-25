@@ -82,6 +82,11 @@ def main(argv=None):
     from inspection.batch_runner import BatchRunner
     runner = BatchRunner()  # One runner instance: models are loaded once and reused.
     print(json.dumps({"groups": run_groups(payload, args.output_root, runner)}))
+    # Which engine files this process actually loaded (TASK18-B-22; written to process.log via stderr).
+    loaded = {name: getattr(sys.modules.get(name), "__file__", None)
+              for name in ("defect_adapter", "aoi_pipeline", "defect_rules", "defect_inference",
+                           "metrology.unet_metrology", "judgment.judge", "run_example")}
+    print("ENGINE_MODULES " + json.dumps(loaded, ensure_ascii=False), file=sys.stderr)
     return 0
 
 

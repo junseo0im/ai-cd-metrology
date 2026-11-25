@@ -3,7 +3,7 @@ from copy import deepcopy
 from datetime import datetime,timedelta,timezone
 import pandas as pd
 import streamlit as st
-from dashboard.record_defaults import definition,STATUSES,NOTICE
+from dashboard.record_defaults import definition,STATUSES
 from dashboard.auth import clear_record_drafts
 from dashboard.record_store import RecordStore,RecordError,editing_enabled,default_rows,tab_token
 
@@ -32,20 +32,16 @@ def local_time(stamp):
 
 def render_records(document_id):
     spec=definition(document_id);store=RecordStore()
-    st.info(NOTICE)
     enabled=editing_enabled()
     if not enabled:
         clear_record_drafts()
+        # TASK18-B-20: the only note above the tables (GUEST); purpose/permission/version/path lines removed.
         st.info("GUEST 조회 전용 — 기록 수정은 관리자 로그인이 필요합니다.")
-    st.caption("기록 편집 권한: "+("ADMIN" if enabled else "GUEST · 조회 전용")+
-               " · 기록은 분석 설정으로 자동 적용되지 않으며 자동 분석 결과가 아닙니다.")
     try:
         document=store.load(document_id)
     except (RecordError,OSError) as exc:
         st.error("기록 파일을 읽거나 초기화하지 못했습니다. 기존 파일은 자동 복구·덮어쓰기하지 않습니다. "+str(exc))
         return
-    st.caption(f"마지막 수정: {local_time(document['updated_at'])} · 기록 버전 {document['record_version']}")
-    st.caption("기록 파일: "+store.path(document_id).as_posix())
     flash=st.session_state.pop("record_flash_"+document_id,None)
     if flash:
         st.success(flash)
@@ -58,7 +54,7 @@ def render_records(document_id):
             draft=st.session_state.get(draft_key)
             heading,action=st.columns([4,1],vertical_alignment="center")
             heading.subheader(title)
-            st.caption(f"탭 수정: {local_time(saved['updated_at'])} · 버전 {saved['revision']}")
+            revision_note=f"탭 수정: {local_time(saved['updated_at'])} · 버전 {saved['revision']}"  # Shown under the table.
             if draft is None:
                 if action.button("수정",key=prefix+"_edit",disabled=not enabled,width="stretch"):
                     st.session_state[draft_key]={"rows":deepcopy(saved["rows"]),"token":tab_token(saved)}
@@ -71,6 +67,7 @@ def render_records(document_id):
                         "단위":st.column_config.TextColumn(width="small"),
                         "상태":st.column_config.TextColumn(width="small"),
                         "비고":st.column_config.TextColumn(width="large")})
+                st.caption(revision_note)
                 continue
             if draft["token"]!=tab_token(saved):
                 st.warning("저장 파일의 이 탭이 변경됐습니다. 취소 후 최신 내용을 확인하세요. 이전 초안은 자동 덮어쓰지 않습니다.")
@@ -85,6 +82,7 @@ def render_records(document_id):
                     "상태":st.column_config.SelectboxColumn(options=list(STATUSES),required=True,width="small"),
                     "비고":st.column_config.TextColumn(width="large")},
                 key=prefix+"_editor_"+str(st.session_state.get(epoch_key,0)))
+            st.caption(revision_note)
             save,cancel,restore=st.columns(3)
             if save.button("저장",key=prefix+"_save",type="primary",disabled=not enabled,width="stretch"):
                 try:

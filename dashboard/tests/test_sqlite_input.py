@@ -774,7 +774,7 @@ class SQLiteBatchDetailTests(unittest.TestCase):
         for label,value in (("자동 Batch 표시 번호","W1 · Batch 01"),("이미지 수","1장"),
                             ("Upload Mode","wafer_batch"),("Wafer ID","W1"),("Dataset Role","evaluation")):
             self.assertTrue(any(label in row.value and value in row.value for row in at.markdown))
-        for expected in ("노광 단위: DB 미기록 · 표시 기준 mJ/cm²","Lot ID: 미기록"):  # TASK18-B-13A.2 stored state kept visible
+        for expected in ("노광 단위: DB 미기록 · 표시 기준 s","Lot ID: 미기록"):  # TASK18-B-13A.2 stored state kept visible
             self.assertIn(expected,[row.value for row in at.text])
         images=next(row.value for row in at.dataframe if "position_code" in row.value)
         self.assertEqual(set(images["image_id"]),set(first["image_ids"]))

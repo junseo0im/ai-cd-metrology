@@ -112,7 +112,8 @@ def _defects(frame, data):
         if not item:
             continue
         model = [d for d in item.get("defect_details") or [] if d.get("source") == "MODEL_POSTPROCESSED"]
-        heuristic += sum(d.get("source") == "HEURISTIC" for d in item.get("defect_details") or [])
+        heuristic += sum(d.get("source") == "HEURISTIC" or (d.get("source") == "RULE" and d.get("class_code") == "pd")
+                         for d in item.get("defect_details") or [])   # non-model PD (TASK18-B-22)
         counts.update(d["class_code"] for d in model)
         images += bool(model)
     return {"counts": dict(counts), "images_with_defects": images, "heuristic_pd": heuristic,

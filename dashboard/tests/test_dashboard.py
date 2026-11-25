@@ -59,7 +59,10 @@ class PageTests(unittest.TestCase):
         elif at.session_state["active_page_key"] in ("main_home","dataset"):  # TASK18-B-9 / 18-B-13A.1: no header caption.
             self.assertTrue(any("SQLITE" in c.value for c in at.sidebar.caption))
         else:
-            self.assertTrue(any("참고용 예시 화면" in c.value or "SQLite" in c.value for c in at.caption))
+            # TASK18-B-18: no description line under the platform title; the source stays in the sidebar.
+            self.assertTrue(any(k in c.value for c in at.sidebar.caption for k in ("SQLITE", "참고용 예시 화면")))
+        self.assertFalse(any(c.value.startswith(("참고용 예시 화면 · 운영 SQLite", "SQLite 운영 DB ·", "로컬 JSON 기록 ·",
+                                                 "MLflow 실험 기록 조회 ·")) for c in at.caption))
 
     def button(self,at,label):
         return next(b for b in at.button if b.label == label)

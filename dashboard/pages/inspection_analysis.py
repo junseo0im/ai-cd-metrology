@@ -19,7 +19,7 @@ sqlite_images=st.session_state.get("_wafer_source","SQLite")=="SQLite"
 def render_sqlite_page():
     """Operational I&A: SQLite only, four tabs. Stored AI results are read, never recomputed."""
     st.session_state["ia_sqlite_selected_image_id"]=None
-    wafer_tab,width_tab,repeat_tab,light_tab=st.tabs(["Wafer / Image","선폭 / 오차율","Repeatability","Lighting"])
+    wafer_tab,width_tab,repeat_tab,light_tab=st.tabs(["Wafer / Image","선폭 / 오차율 / 결함","Repeatability","Lighting"])
     with wafer_tab:
         left,right=st.columns(2,gap="medium")  # TASK18-B-14B: Map 50% · images 50%
         with left,st.container(border=True,key="card_ia_map"):

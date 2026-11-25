@@ -1,0 +1,54 @@
+{
+  "model_version": "rfdetr-v8tqh/-wdlu9-2-rfdetr-seg-small-t1",
+  "architecture": "rfdetr-seg-small",
+  "format": "ONNX",
+  "artifact_sha256": "858962c228d5eb419e5a58dea699045b030d3e09c796bcd0c3fc960794733e52",
+  "artifact_bytes": 123304434,
+  "source_dataset_version": "2",
+  "source_dataset_endpoint": "lTkNBEW4gH6qzYk52cXs/2",
+  "training_recipe_id": "928e7190b4ca9761b6ed54e67fa8c57cd5e6f77dfaa196ec4eaeab4f7b6f365e",
+  "training_epoch": null,
+  "version_note": "Full served trained-model revision identifier is authoritative; dataset version 2 is not a claim about checkpoint epoch. ONNX model_version=0 is a format default.",
+  "acquisition": "Existing artifact from the successful TASK16-B-1 model load; SHA-256 frozen. No re-export or download.",
+  "export_signature": {
+    "input": [
+      1,
+      3,
+      384,
+      384
+    ],
+    "outputs": [
+      "dets",
+      "labels",
+      "masks"
+    ],
+    "logit_class_names": [
+      "background_class83422",
+      "o",
+      "p",
+      "pd",
+      "s",
+      "sc"
+    ],
+    "background_index": 0
+  },
+  "preprocessing": {
+    "color": "RGB from decoded BGR",
+    "normalize_mean": [
+      0.485,
+      0.456,
+      0.406
+    ],
+    "normalize_std": [
+      0.229,
+      0.224,
+      0.225
+    ],
+    "resize": "Stretch to 384x384 after normalization",
+    "interpolation": "OpenCV INTER_LINEAR"
+  },
+  "confidence": "sigmoid, global top300, strict > threshold, exclude background then class-index shift; no objectness multiplication",
+  "bbox": "normalized cxcywh -> xyxy * original decoded width/height -> clip; no letterbox offset",
+  "mask": "resize mask logits to image dimensions, threshold >0, largest external contour by vertex count",
+  "runtime_network_dependency": false
+}

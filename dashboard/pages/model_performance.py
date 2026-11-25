@@ -11,7 +11,6 @@ import urllib.request
 import streamlit as st
 from dashboard.components.layout import page_title
 from dashboard.components.mlflow import render_mlflow_browser
-from dashboard.defect_inspection.ui import render_inspection
 
 SETTINGS = Path(__file__).resolve().parents[1] / "roboflow_gradio.toml"
 RUN_COMMAND = ('$env:MODEL_CACHE_DIR="runtime_data\\envs\\roboflow_cache"\n'
@@ -50,7 +49,13 @@ with roboflow_tab:
     else:
         with st.container(border=True):
             st.subheader("RF-DETR 결함 검출 시연")
-            render_inspection()
+            try:  # Teammate UI (dashboard/defect_inspection); imported here so MLflow never breaks with it.
+                from dashboard.defect_inspection.ui import render_inspection
+            except ImportError as exc:
+                st.error("결함 검사 UI 의존성이 이 환경에 설치되지 않았습니다 (" + (exc.name or str(exc)) + ") · "
+                         "dashboard/requirements-inspection.txt")
+            else:
+                render_inspection()
         with st.expander("별도 Gradio 실험 앱으로 실행하기 (선택)"):
             st.caption("연결 준비 중 · " + ("Gradio 실험 앱이 실행 중이 아닙니다 (" + url + ")" if url
                                         else "Gradio 주소가 설정되지 않았습니다"))

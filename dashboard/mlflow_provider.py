@@ -152,6 +152,17 @@ class ReadonlyClient:
             payload["page_token"] = page_token
         return self._request("runs/search", payload)
 
+    def all_runs(self, experiment_id, cap=5000):
+        """Every run of one experiment (all pages, 200 per request) for the default comparison table."""
+        runs, token, seen = [], "", set()
+        while True:
+            page = self.runs(experiment_id, 200, token)
+            runs += page.get("runs", [])
+            token = page.get("next_page_token", "")
+            if not token or token in seen or len(runs) >= cap:
+                return {"runs": runs, "truncated": bool(token) and len(runs) >= cap}
+            seen.add(token)
+
     def run(self, run_id):
         return self._request("runs/get", {"run_id": run_id}).get("run", {})
 

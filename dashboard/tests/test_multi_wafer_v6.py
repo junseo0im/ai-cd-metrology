@@ -126,7 +126,7 @@ class MultiWaferV6Tests(Base):
         self.assertFalse(at.exception,[e.value for e in at.exception])
         table=next(d.value for d in at.dataframe if "REVIEW_REQUIRED" in d.value.columns and "Wafer ID" in d.value.columns)
         self.assertEqual(table[["Wafer ID","이미지","노광","PEB (s)","READY","BLOCKED"]].values.tolist(),
-                         [["W1",72,"50 mJ/cm²","220",72,0],["W2",72,"60 mJ/cm²","220",72,0],["W3",72,"70 mJ/cm²","120",72,0]])
+                         [["W1",72,"50 s","220",72,0],["W2",72,"60 s","220",72,0],["W3",72,"70 s","120",72,0]])
         self.assertTrue(any("전체 216장 · Wafer 3개 · READY 216" in c.value for c in at.caption))
         self.assertFalse(at.button(key="sqlite_register").disabled)
         at.button(key="sqlite_register").click().run();self.assertFalse(at.exception)
@@ -282,7 +282,7 @@ class MultiWaferV6Tests(Base):
         self.assertEqual({w:analysed[(batch,w)] for w in ("W2","W3","W5")},{"W2":2,"W3":2,"W5":1})
         table=condition_accumulation(self.p.batch_wafers(),analysed)
         mine=table[table["Wafer"].isin(["W2","W3","W5"])].values.tolist()
-        self.assertEqual(mine,[["W2","50 mJ/cm²","220",1,2,2],["W3","60 mJ/cm²","—",1,2,2],["W5","70 mJ/cm²","120",1,1,1]])
+        self.assertEqual(mine,[["W2","50 s","220",1,2,2],["W3","60 s","—",1,2,2],["W5","70 s","120",1,1,1]])
         # Batch list: one row, Wafer list and Batch total.
         row=self.p.batch_record(batch)
         self.assertEqual((row["wafer_list"],row["wafer_count"],int(row["image_count"])),("W2, W3, W5",3,5))
@@ -305,12 +305,12 @@ class MultiWaferV6Tests(Base):
         self.assertFalse(at.exception,[e.value for e in at.exception])
         composition=next(d.value for d in at.dataframe if "READY" in d.value.columns)
         self.assertEqual(composition[["Wafer ID","노광","PEB (s)","이미지 수","분석 결과 이미지 수"]].values.tolist(),
-                         [["W2","50 mJ/cm²","220",2,2],["W3","60 mJ/cm²","—",2,2],["W5","70 mJ/cm²","120",1,1],["Batch 합계","Wafer별","Wafer별",5,5]])
+                         [["W2","50 s","220",2,2],["W3","60 s","—",2,2],["W5","70 s","120",1,1],["Batch 합계","Wafer별","Wafer별",5,5]])
         self.assertIn(">W2, W3, W5<"," ".join(m.value for m in at.main.markdown))
         self.assertIn(">Batch 01<"," ".join(m.value for m in at.main.markdown))
         # Wafer detail for W3 only (other Wafers of the same Batch are not counted).
         at=AppTest.from_file(APP,default_timeout=120)
-        at.session_state["selected_sqlite_wafer"]={"wafer_id":"W3","exposure":"60 mJ/cm²","peb":"—"}
+        at.session_state["selected_sqlite_wafer"]={"wafer_id":"W3","exposure":"60 s","peb":"—"}
         at.run();at.switch_page("pages/wafer_detail.py").run()
         self.assertFalse(at.exception,[e.value for e in at.exception])
         values=" ".join(m.value for m in at.main.markdown)
@@ -321,7 +321,7 @@ class MultiWaferV6Tests(Base):
         at.session_state["_wafer_selected_SQLite"]="W5"
         at.run();at.switch_page("pages/inspection_analysis.py").run()
         self.assertFalse(at.exception,[e.value for e in at.exception])
-        self.assertTrue(any("선택 범위: W5 / 노광 70 mJ/cm² / 120 s / 전체 Batch 1개" in c.value for c in at.caption))
+        self.assertTrue(any("선택 범위: W5 / 노광 70 s / 120 s / 전체 Batch 1개" in c.value for c in at.caption))
 
     # ---- 11: single-Wafer Batches keep working on v6 (old metadata shape and v6 shape) ------------
     def test_08_single_wafer_paths_on_v6(self):

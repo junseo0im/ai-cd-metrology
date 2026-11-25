@@ -402,3 +402,6 @@ p { line-height:1.5; }
 /* TASK18-B-17: the '웨피' host takes no layout space (the character itself is position:fixed). */
 .st-key-waepi_host { position:absolute!important; width:0!important; height:0!important; overflow:visible!important;
  margin:0!important; padding:0!important; }
+
+/* TASK18-B-18: the last row of a page can scroll clear of the floating '웨피' (bottom-right). */
+[data-testid="stMainBlockContainer"] { padding-bottom: 150px !important; }

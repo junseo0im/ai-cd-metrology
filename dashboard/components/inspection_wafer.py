@@ -353,7 +353,7 @@ def wafer_context(prefix, *, source_slot=None, wafer_slot=None, batch_filter=Fal
 
 
 def exposure_label(value,unit):
-    """I&A condition label; unrecorded unit -> user-confirmed mJ/cm² (display only, TASK18-B-13A.1)."""
+    """I&A condition label; exposure shown in seconds (s) (display only, TASK18-B-18)."""
     from dashboard.units import exposure_display
     return exposure_display(value,unit,missing="노광 미입력")
 

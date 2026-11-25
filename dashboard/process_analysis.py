@@ -131,3 +131,69 @@ def condition_table(images, axis, *, by_wafer=False, results=None):
             row[code+" 포함 이미지 수"]=sum(code in c for c in known) if results is not None and known else None
         rows.append(row)
     return pd.DataFrame(rows)
+
+
+# ---- Condition defect share (TASK18-B-18) ----------------------------------------------------------
+def count_defects(details):
+    """Detected defects of one run; an S and the P derived from it count once (via the S)."""
+    total = 0
+    for d in details:
+        if d.get("team_source") == "from_s":
+            continue   # Part of its source S (counted with that S), whether or not the link was resolved.
+        total += d.get("source") == "MODEL_POSTPROCESSED"
+    return total
+
+
+def derived_pairs(details):
+    """(S index, P index) pairs from the stored derivation link, plus derived P without a resolved S."""
+    pairs, unresolved = [], []
+    for index, d in enumerate(details):
+        if d.get("team_source") == "from_s":
+            parent = d.get("derived_from_index")
+            ok = isinstance(parent, int) and 0 <= parent < len(details) and details[parent].get("class_code") == "s"
+            (pairs.append((parent, index)) if ok else unresolved.append(index))
+    return pairs, unresolved
+def defect_ratio_table(images, axis, analysis):
+    """Per condition: detected defects / all detected defects in the current filter x 100.
+
+    * Defects = stored MODEL_POSTPROCESSED detections of each image's latest run (same 'detected defect'
+      rule as the Die/image summaries; rule-based PD suspicion is not a detection).
+    * r33 (TASK18-B-22): a P split out of an S (team_source 'from_s') and that S are ONE defect: the pair is
+      counted through its S (by the S's own source rule) and the derived P adds nothing. The pair is taken
+      from the stored derivation link (derived_from_index), never from box overlap; an independently
+      detected P is counted as before.
+    * One row per image's latest run -> no join duplication; the same capture (SHA-256) registered in
+      several Batches is counted once (the copy with the newest stored analysis, as on the Wafer Map).
+    * 결함 분석 완료 = stored result with defect_status SUCCESS (0-defect images included);
+      images without a result / without a successful defect stage are counted separately.
+    """
+    from dashboard.components.inspection_wafer import duplicate_exclusions
+    column = "exposure_condition" if axis == "exposure" else "peb_condition"
+    records = images.to_dict("records")
+    excluded = duplicate_exclusions(records, analysis or {})
+    rows = []
+    for condition, group in images.groupby(column, dropna=False, sort=False):
+        defects = analysed = missing = merged = 0
+        for record in group.to_dict("records"):
+            if record["image_id"] in excluded:
+                continue
+            item = (analysis or {}).get(record["image_id"])
+            if not item or item.get("defect_status") != "SUCCESS":
+                missing += 1
+                continue
+            analysed += 1
+            defects += count_defects(item.get("defect_details") or [])
+            merged += sum(d.get("team_source") == "from_s" for d in item.get("defect_details") or [])
+        rows.append({"공정 조건": condition, "결함 건수": defects, "결함 분석 완료 이미지 수": analysed,
+                     "결함 분석 미실행·결과 없음 이미지 수": missing, "S 파생 P (S와 1건 합산)": merged})
+    table = pd.DataFrame(rows)
+    if table.empty:
+        return table
+    total = int(table.loc[table["결함 분석 완료 이미지 수"] > 0, "결함 건수"].sum())
+    table["결함 개수 비율 (%)"] = [None if n == 0 or total == 0 else d / total * 100
+                                 for d, n in zip(table["결함 건수"], table["결함 분석 완료 이미지 수"])]
+    table["이미지 100장당 결함 건수"] = [None if n == 0 else d / n * 100
+                                    for d, n in zip(table["결함 건수"], table["결함 분석 완료 이미지 수"])]
+    table.attrs["total_defects"] = total
+    table.attrs["duplicates_excluded"] = len(excluded)
+    return table

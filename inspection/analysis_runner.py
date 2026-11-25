@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 import sys
 import time
@@ -12,7 +13,14 @@ from inspection.metrology_adapter import (
     IDENTIFIERS, ROOT, TEAM_UNET, MetrologyAdapter, checked_module, json_value,
 )
 
-TEAM_DEFECT = ROOT / "runtime_data/external_incoming/defect_adapter"
+# IDA_TEAM_DEFECT_DIR selects another defect adapter folder (e.g. the r33 integration for validation);
+# without it the existing adapter folder is used unchanged.
+TEAM_DEFECT = Path(os.environ.get("IDA_TEAM_DEFECT_DIR") or ROOT / "runtime_data/external_incoming/defect_adapter").resolve()
+SOURCE_TO_TEAM = {"MODEL_POSTPROCESSED": "model", "HEURISTIC": "heuristic", "RULE": "rule"}
+# Valid defect sources. RULE = r33 rule-added S/PD and P split out of an S (TASK18-B-22).
+DEFECT_SOURCES = ("MODEL_POSTPROCESSED", "HEURISTIC", "RULE")
+# PD without any model PD (HEURISTIC and/or RULE) -> policy review; decided 2026-11-25 (TASK18-B-22).
+NON_MODEL_PD_SOURCES = {"HEURISTIC", "RULE"}
 MODEL_CONFIG = ROOT / "runtime_data/config/defect_local_model.json"
 
 
@@ -35,6 +43,8 @@ def _save_defect_overlay(request, result, path):
     if image is None:
         raise ValueError("cannot load overlay source image")
     frame = result["bbox_coordinate_system"]
+    if hasattr(pipeline, "rules"):   # r33: deskew/draw live in the teammate's defect_rules (TASK18-B-21)
+        return _save_r33_defect_overlay(pipeline.rules, image, result, path)
     if frame == "DESKEWED_IMAGE":
         image, angle = pipeline.auto_deskew_vertical_lines(image)
         if float(angle) != result["skew_angle"]:
@@ -56,6 +66,41 @@ def _save_defect_overlay(request, result, path):
             "coordinate_space": frame, "rendering": "team bbox/label/corner renderer",
             "masks": "not exposed by existing Contract Adapter; not rendered",
             "deskew_frame": "unchanged team function replay, angle verified; no second inference"}
+
+
+def _save_r33_defect_overlay(rules, image, result, path):
+    """Replay the teammate deskew (rotate + crop) and draw with the teammate's draw-only call; no inference."""
+    import cv2
+    import numpy as np
+    import supervision as sv
+    frame = result["bbox_coordinate_system"]
+    if frame == "DESKEWED_IMAGE":
+        image, angle = rules.deskew_image(image)
+        if round(float(angle), 2) != result["skew_angle"]:
+            raise ValueError("deskew replay does not match inference frame")
+    else:
+        angle = 0.0
+    if list(image.shape[:2]) != [result["bbox_image_height"], result["bbox_image_width"]]:
+        raise ValueError("overlay image size does not match bbox frame")
+    items = result["detections"]
+    detections = sv.Detections(
+        xyxy=np.asarray([item["bbox_xyxy"] for item in items], dtype=np.float32).reshape(-1, 4),
+        class_id=np.asarray([item["class_id"] for item in items], dtype=int),
+        confidence=np.asarray([item["confidence"] for item in items], dtype=np.float32),
+        data={"class_name": np.asarray([item["class_name"] for item in items], dtype=str),
+              "source": np.asarray([item.get("team_source") or SOURCE_TO_TEAM.get(item["source"], "model")
+                                    for item in items], dtype=str)})
+    # Same call the teammate pipeline uses to redraw without rules (all rule switches off).
+    rendered, _, _ = rules._apply_rules_and_draw(image, detections, angle, True, False,
+                                                 False, False, False, False, False, False)
+    ok, encoded = cv2.imencode(".png", rendered)
+    if not ok:
+        raise ValueError("defect overlay PNG encoding failed")
+    encoded.tofile(str(path))
+    return {"path": str(path), "base_image": frame, "coordinate_space": frame,
+            "rendering": "team r33 draw-only (_apply_rules_and_draw, rules off)",
+            "masks": "not exposed by Contract Adapter; not rendered",
+            "deskew_frame": "team rules.deskew_image replay (rotate+crop), angle and size verified; no second inference"}
 
 
 def _save_metrology_overlay(request, result, path):
@@ -165,7 +210,7 @@ class AnalysisRunner:
                 from_model = {name: index for index, name in enumerate(names)}
                 for detection in defect["detections"]:
                     code = detection.get("class_code")
-                    if code not in DEFECT_CLASSES or detection.get("source") not in ("MODEL_POSTPROCESSED", "HEURISTIC"):
+                    if code not in DEFECT_CLASSES or detection.get("source") not in DEFECT_SOURCES:
                         raise ValueError("invalid defect class/source")
                     confidence = detection.get("confidence")
                     bbox = detection.get("bbox_xyxy")
@@ -185,7 +230,7 @@ class AnalysisRunner:
                     result["pd_policy"]["state"] = "MODEL_PD_EXCLUDED"
                     result["metrology"]["error_code"] = "MODEL_PD_EXCLUDED"
                     result["status"] = "SUCCESS"
-                elif "HEURISTIC" in pd_sources:
+                elif pd_sources and set(pd_sources) <= NON_MODEL_PD_SOURCES:
                     result["pd_policy"]["state"] = "POLICY_REVIEW_REQUIRED"
                     result["metrology"]["error_code"] = "POLICY_REVIEW_REQUIRED"
                     result["status"] = "SKIPPED"

@@ -9,7 +9,7 @@ import streamlit as st
 from dashboard import data_provider as mock
 from dashboard.components.analysis_management import collect_images
 from dashboard.components.tables import data_table
-from dashboard.process_analysis import ALL,MISSING,metadata_frame,condition_table
+from dashboard.process_analysis import defect_ratio_table, ALL,MISSING,metadata_frame,condition_table
 
 
 def stored_results(provider):
@@ -121,7 +121,7 @@ def _x_title(subset,axis):
     if axis!="exposure":
         return "PEB 조건 (s)"
     from dashboard.units import exposure_unit_text
-    units={exposure_unit_text(u) for u in subset.get("exposure_unit",pd.Series(dtype=object))} or {"mJ/cm²"}
+    units={exposure_unit_text(u) for u in subset.get("exposure_unit",pd.Series(dtype=object))} or {"s"}
     return "노광 조건 ("+units.pop()+")" if len(units)==1 else "노광 조건 (조건별 단위)"
 
 
@@ -171,13 +171,13 @@ def _condition_tab(frame,axis,source,results=None,provider=None,analysis=None):
     no_result="저장된 계측 결과 없음 · 등록 Calibration 확인 후 분석 실행이 필요합니다"
     x_title=_x_title(subset,axis)
     axis_label=x_title
-    unit_note=(" · 노광 단위가 기록되지 않은 데이터는 사용자 확인 단위 mJ/cm²로 표시 (DB 저장값 변경 없음)" if axis=="exposure" else "")
+    unit_note=(" · 노광 조건은 시간(초, s) 단위로 표시 (DB 저장값 변경 없음)" if axis=="exposure" else "")
     with st.container(key="ia_graphs_"+axis):
         first,second,third=st.columns(3,gap="small")
         with first,st.container(border=True,key=f"ia_graph_{axis}_width"):
-            _card_head("조건별 평균 Line Width",f"Y: 평균 Line Width (µm) · X: {axis_label}",
+            _card_head("조건별 평균 Line Width",f"Y: 평균 Line Width (µm) ±1σ · X: {axis_label}",
                        "AI 잠정 분석 결과(공식 채택 아님) · 이미지별 최신 실행 · 부분 계측·PD 이미지는 평균에서 제외 · "
-                       "SPC 관리선 없음 · 이미지 간 표본 표준편차는 점에 마우스를 올리면 표시"
+                       "SPC 관리선 없음 · 오차 막대 = 이미지별 평균 선폭 간 표본 표준편차(ddof=1) ±1σ · 표본 1개면 산출 불가"
                        +(" · 조건별 유효 이미지 수: "+counts if counts else "")+unit_note)
             if has_values:
                 st.plotly_chart(_compact(width_line_chart(valid)).update_xaxes(title_text=x_title),width="stretch",theme="streamlit",key="ia_process_width_"+axis)
@@ -191,19 +191,25 @@ def _condition_tab(frame,axis,source,results=None,provider=None,analysis=None):
                 st.plotly_chart(_compact(error_bar_chart(valid,metric)).update_xaxes(title_text=x_title),width="stretch",theme="streamlit",key="ia_process_error_chart_"+axis)
             else:
                 st.info("분석 결과 없음 — 선폭·표준편차·오차율 산출 불가")
-        with third,st.container(border=True,key=f"ia_graph_{axis}_distribution"):
-            _card_head("이미지별 평균 분포 (Line / Gap)",f"Y: 이미지 평균 (µm) · X: {axis_label} · 박스 + 개별 이미지",
-                       "평균 선폭 표와 같은 유효(READY) 이미지만 사용 · 이미지마다 Line·Gap 평균 1점")
-            distribution=_distribution(subset,axis,results) if has_values else pd.DataFrame()
-            if not distribution.empty:
-                box=_compact(px.box(distribution,x="공정 조건",y="이미지 평균 (µm)",color="구분",points="all"),legend=True)
-                # Same category order as graphs 1·2 (numeric ascending, unrecorded last); traces/values unchanged.
-                box.update_xaxes(title_text=x_title,categoryorder="array",
-                                 categoryarray=[c for c in valid["공정 조건"] if c in set(distribution["공정 조건"])])
-                st.plotly_chart(box,
-                                width="stretch",theme="streamlit",key="ia_process_distribution_"+axis)
+        with third,st.container(border=True,key=f"ia_graph_{axis}_defects"):
+            _card_head("조건별 결함 개수 비율",f"Y: 결함 개수 비율 (%) · X: {axis_label}",
+                       "비율 = 해당 조건의 검출 결함 건수 ÷ 현재 필터 전체 조건의 검출 결함 건수 × 100 · "
+                       "검출 결함 = 이미지별 최신 실행의 모델 검출(규칙 기반 PD 의심 제외) · S에서 파생된 P는 원래 S와 1건으로 집계 · "
+                       "동일 촬영(SHA) 중복은 1장으로 집계 · "
+                       "AI 잠정 결과(공식 판정 아님)")
+            ratio=defect_ratio_table(subset,axis,analysis) if analysis is not None else pd.DataFrame()
+            analysed=int(ratio["결함 분석 완료 이미지 수"].sum()) if not ratio.empty else 0
+            if ratio.empty or analysed==0:
+                st.info("결함 분석 결과 없음 · 현재 조회 범위에 결함 분석이 완료된 이미지가 없습니다")
+            elif ratio.attrs.get("total_defects",0)==0:
+                st.info(f"조회 범위 전체 결함 0건 · 결함 분석 완료 이미지 {analysed}장 (비율 산출 불가)")
             else:
-                st.info("분포 데이터 없음 · 유효 계측 이미지 없음")
+                ordered=_sorted_conditions(ratio,subset,axis)
+                st.plotly_chart(_compact(defect_ratio_chart(ordered)).update_xaxes(title_text=x_title),
+                                width="stretch",theme="streamlit",key="ia_process_defects_"+axis)
+                waiting=ordered[ordered["결함 분석 완료 이미지 수"]==0]["공정 조건"].tolist()
+                if waiting:
+                    st.caption("결함 분석 결과 없음: "+", ".join(map(str,waiting))+" (0%와 구분해 막대 없이 표시)")
     fail_area(subset,provider,analysis)  # TASK18-B-13A.1: first of the four detail expanders.
     if subset.empty:
         st.info("선택 조건의 등록 이미지 없음")
@@ -236,11 +242,15 @@ def width_line_chart(valid):
     """Mean line width per condition: points + line between actual conditions only."""
     import plotly.graph_objects as go
     sd=valid["이미지 간 표준편차 (µm)"]
+    # TASK18-B-18: ±1 SD of the same observations as the mean (image-mean line widths, sample SD, ddof=1).
+    sd_values=[float(v) if v==v and v is not None else 0.0 for v in sd]
+    sd_text=[f"{v:.3f} µm" if v==v and v is not None else "산출 불가" for v in sd]
     fig=go.Figure(go.Scatter(x=valid["공정 조건"],y=valid["평균 선폭 (µm)"],mode="lines+markers+text",
         text=[f"{v:.3f}" for v in valid["평균 선폭 (µm)"]],textposition="top center",
-        customdata=list(zip(valid["유효 이미지 수"],sd.where(sd.notna(),None))),
-        hovertemplate="%{x}<br>평균 Line %{y:.3f} µm<br>유효 이미지 %{customdata[0]}장"
-                      "<br>이미지 간 표준편차 %{customdata[1]:.3f} µm<extra></extra>",name="평균 Line Width"))
+        error_y=dict(type="data",array=sd_values,visible=True,thickness=1.4,width=5),
+        customdata=list(zip(valid["유효 이미지 수"],sd_text)),
+        hovertemplate="%{x}<br>평균 선폭 %{y:.3f} µm<br>표준편차 %{customdata[1]}"
+                      "<br>유효 표본 수 n = %{customdata[0]}<extra></extra>",name="평균 Line Width"))
     fig.update_layout(xaxis_title="공정 조건 (저장된 값)",yaxis_title="평균 Line Width (µm)",
                       xaxis_type="category",showlegend=False,margin=dict(t=30))
     return fig
@@ -250,6 +260,26 @@ def error_bar_chart(valid,metric):
     """Design error per condition (bar, unchanged form); hover shows the sample size."""
     fig=px.bar(valid,x="공정 조건",y=metric,hover_data={"유효 이미지 수":True},text=valid[metric].map(lambda v:f"{v:.2f}%"))
     fig.update_layout(yaxis_title=metric,xaxis_type="category")
+    return fig
+
+
+def defect_ratio_chart(table):
+    """Defect share per condition; conditions without defect results get no bar (not 0 %)."""
+    import plotly.graph_objects as go
+    done=table["결함 분석 완료 이미지 수"]>0
+    y=[float(v) if ok else None for v,ok in zip(table["결함 개수 비율 (%)"],done)]
+    text=[f"{v:.1f}%" if ok else "결과 없음" for v,ok in zip(table["결함 개수 비율 (%)"].fillna(0),done)]
+    per100=[f"{v:.1f}" if ok else "-" for v,ok in zip(table["이미지 100장당 결함 건수"].fillna(0),done)]
+    fig=go.Figure(go.Bar(x=table["공정 조건"],y=y,text=text,textposition="outside",marker_color="#e0883e",
+        customdata=list(zip(table["결함 건수"],table["결함 분석 완료 이미지 수"],per100,text,
+                            table["결함 분석 미실행·결과 없음 이미지 수"],
+                            table["S 파생 P (S와 1건 합산)"] if "S 파생 P (S와 1건 합산)" in table else [0]*len(table))),
+        hovertemplate="%{x}<br>결함 건수 %{customdata[0]}건<br>결함 개수 비율 %{customdata[3]}"
+                      "<br>결함 분석 완료 이미지 %{customdata[1]}장<br>이미지 100장당 결함 %{customdata[2]}건"
+                      "<br>결과 없음 이미지 %{customdata[4]}장"
+                      "<br>S 파생 P %{customdata[5]}건 (원래 S와 1건으로 합산)<extra></extra>"))
+    fig.update_layout(yaxis_title="결함 개수 비율 (%)",xaxis_type="category",showlegend=False,margin=dict(t=30))
+    fig.update_yaxes(rangemode="tozero")
     return fig
 
 

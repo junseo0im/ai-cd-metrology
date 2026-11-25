@@ -106,7 +106,7 @@ class V5Tests(Base):
                               exclude_from_judgment=duplicate_exclusions(scoped["images"],analysis),judge=not scoped["mixed"])
             return scoped,{d["die_code"]:d for d in dies}
         both,_=assess(None);self.assertTrue(both["mixed"])
-        s60,d60=assess("60 mJ/cm²");s70,d70=assess("70 mJ/cm²")
+        s60,d60=assess("60 s");s70,d70=assess("70 s")
         self.assertFalse(s60["mixed"] or s70["mixed"])
         self.assertEqual(d60["21"]["assessment"]["decision"],"PASS")          # 70 PD never leaks into 60.
         self.assertEqual(d60["13"]["assessment"]["decision"],"PENDING")
@@ -115,10 +115,10 @@ class V5Tests(Base):
         self.assertEqual(summarize_wafer(list(d70.values()))["FAIL"],1)
         self.assertEqual(summarize_wafer(list(d60.values()))["FAIL"],0)
         table=condition_table(metadata_frame(collect_images(self.p)),"exposure",results=stored_results(self.p)).set_index("공정 조건")
-        self.assertEqual(int(table.loc["70 mJ/cm²","분석 결과 이미지 수"]),3)
-        self.assertEqual(int(table.loc["70 mJ/cm²","PD 제외 이미지 수"]),3)   # All three Die-13 images: PD.
-        self.assertEqual(int(table.loc["70 mJ/cm²","유효 이미지 수"]),0)
-        self.assertEqual(int(table.loc["60 mJ/cm²","유효 이미지 수"]),3)
+        self.assertEqual(int(table.loc["70 s","분석 결과 이미지 수"]),3)
+        self.assertEqual(int(table.loc["70 s","PD 제외 이미지 수"]),3)   # All three Die-13 images: PD.
+        self.assertEqual(int(table.loc["70 s","유효 이미지 수"]),0)
+        self.assertEqual(int(table.loc["60 s","유효 이미지 수"]),3)
 
     def test_05_wafer_map_one_row_sqlite_only_and_reset(self):
         from streamlit.testing.v1 import AppTest
@@ -131,15 +131,15 @@ class V5Tests(Base):
         self.assertEqual([labels.get(k) for k in ("ia_wafer_wafer_SQLite","ia_wafer_exposure_SQLite_W1","ia_wafer_peb_SQLite_W1",
                                                   "ia_wafer_batch_SQLite_W1")],["Wafer ID","노광","PEB","Batch"])
         exposure=at.selectbox(key="ia_wafer_exposure_SQLite_W1")
-        self.assertEqual(exposure.options,["전체 (조건 혼합)","60 mJ/cm²","70 mJ/cm²"])
+        self.assertEqual(exposure.options,["전체 (조건 혼합)","60 s","70 s"])
         self.assertTrue(any("조건을 선택하세요" in w.value for w in at.warning))      # Default = 전체 -> mixed.
-        exposure.select("70 mJ/cm²").run()
+        exposure.select("70 s").run()
         self.assertEqual([o for o in at.selectbox(key="ia_wafer_batch_SQLite_W1").options if o!="전체 Batch"],
                          [o for o in at.selectbox(key="ia_wafer_batch_SQLite_W1").options if b[6:14] in o])  # Only 70 Batch.
         select_die(at.session_state,"ia_wafer_map_SQLite_W1_all","22",popover=True);at.run()
         next(g for g in at.get("button_group") if g.key.startswith("ia_sqlite_position_")).set_value("c").run()
         self.assertIsNotNone(at.session_state["ia_sqlite_selected_image_id"])
-        at.selectbox(key="ia_wafer_exposure_SQLite_W1").select("60 mJ/cm²").run()
+        at.selectbox(key="ia_wafer_exposure_SQLite_W1").select("60 s").run()
         self.assertIsNone(at.session_state["ia_sqlite_selected_image_id"]);self.assertFalse(at.exception)
 
     def test_06_registration_form_does_not_preselect_wafer_exposure(self):

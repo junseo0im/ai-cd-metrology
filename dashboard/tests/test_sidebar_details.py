@@ -65,7 +65,7 @@ class SidebarDetailTests(unittest.TestCase):
         from dashboard.components.mlflow import render_mlflow
         with patch("dashboard.components.mlflow.render_mlflow",wraps=render_mlflow) as renderer:
             at=self.app("inspection_analysis")
-            self.assertEqual([tab.label for tab in at.tabs],["Wafer / Image","선폭 / 오차율","노광","PEB","Repeatability","Lighting"])  # TASK18-B-8
+            self.assertEqual([tab.label for tab in at.tabs],["Wafer / Image","선폭 / 오차율 / 결함","노광","PEB","Repeatability","Lighting"])  # TASK18-B-8
             self.assertFalse(any("MLflow · 미연결" in m.value for m in at.markdown))
             at.switch_page(PAGE_SPECS["model_selection"][0]).run()
             self.assertEqual(len(at.exception),0)

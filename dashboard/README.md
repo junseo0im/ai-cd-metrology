@@ -60,8 +60,14 @@ Set-Location dashboard
 - 비밀 설정(선택): `dashboard/.streamlit/secrets.toml.example`을 같은 폴더의 `secrets.toml`로 복사해 채웁니다
   (ADMIN 해시는 `python -B -m dashboard.auth --setup`으로 생성). Roboflow 앱은
   `dashboard/database/roboflow_app/.env.example` → `.env`. 실제 `secrets.toml`·`.env`는 Git에서 제외됩니다.
-- 팀원 PC에서 되지 않는 기능: 분석 실행(모델 환경 `IDA_ANALYSIS_PYTHON`·가중치·`runtime_data/config`가 Git에 없음),
-  Roboflow 탭(별도 Gradio 환경·각자의 API 키 필요). 조회·등록·화면 수정·Word 리포트는 동작합니다.
+- 웨피(진행 상태 캐릭터)는 기본 표시입니다. 진단용으로 서버 환경변수 `IDA_WAEPI_DISABLED=1`을 주면 렌더링과
+  웨피 전용 갱신을 모두 건너뜁니다 (업로드·등록·분석·기존 진행 표시는 그대로).
+- 모델 성능 → Roboflow 탭의 결함 검사 UI(팀원 `dashboard/defect_inspection`)는 `dashboard/requirements-inspection.txt`
+  설치가 필요합니다. 이 설치는 pandas·numpy를 낮추므로 대시보드와 별도 환경을 권장합니다.
+- 분석 실행(결함 r33 + 선폭 v2): 엔진 소스와 설정 사본은 `engines/`에 있습니다. 별도 분석 환경, 설정 2개 복사,
+  가중치 2개(ONNX는 담당자에게 파일로 받음, U-Net은 원격 `unet-method` 브랜치)가 필요합니다 → `engines/README.md`.
+  준비 후 `engines/run_dashboard_with_engines.example.ps1`로 실행합니다.
+- Roboflow 탭은 별도 Gradio 환경·각자의 API 키가 필요합니다. 조회·등록·화면 수정·Word 리포트는 위 준비 없이 동작합니다.
 
 검증한 주 dependency:
 - Streamlit 1.64.0 (st.Page / st.navigation / st.components.v2)

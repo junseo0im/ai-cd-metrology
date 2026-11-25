@@ -425,7 +425,7 @@ def _multi_wafer_metadata(provider,bundle,scope,info,dataset_role,batch_name):
             cols[0].write(wafer)
             cols[1].write(f"{count}장")
             entry["exposure"]=cols[2].number_input("노광 조건 · "+wafer,value=entry["exposure"],step=1.0,format="%g",
-                key=f"sqlite_wafer_exposure_{scope}_{wafer}_{revision}",placeholder="필수 · 실제 노광 수치 (mJ/cm²)",
+                key=f"sqlite_wafer_exposure_{scope}_{wafer}_{revision}",placeholder="필수 · 실제 노광 시간 (s)",
                 label_visibility="collapsed",help="이 Wafer의 실제 노광 · 단위는 입력·추정하지 않습니다.")
             entry["peb"]=cols[3].number_input("PEB Time (s) · "+wafer,value=entry["peb"],step=1.0,format="%g",
                 key=f"sqlite_wafer_peb_{scope}_{wafer}_{revision}",placeholder="미입력은 NULL",
@@ -517,7 +517,7 @@ def _single_wafer_metadata(provider,bundle,common,scope,inferred,info,batch_proc
         # TASK18-B-10A.2: the Wafer-record reference caption is no longer shown (lookup and policy unchanged).
         # TASK18-B-10A.1: direct numeric entry (no preset list, no range). Empty = not entered (registration blocked).
         exposure=st.number_input("노광 조건",value=None if default is None else float(default),step=1.0,format="%g",
-            key="sqlite_exposure_value_"+scope,placeholder="필수 · 실제 노광 수치 (mJ/cm²)",
+            key="sqlite_exposure_value_"+scope,placeholder="필수 · 실제 노광 시간 (s)",
             help="신규 공정은 필수 · 실제 사용한 값만 입력하세요 (소수 가능).")
         # No unit widget: a unit is never invented. The Wafer record's own unit is reused only when the
         # entered value equals that record (so the same record is reused exactly as before); otherwise none.
@@ -588,6 +588,8 @@ def render_registration(mode,dataset_role,upload_slot=None):
                 result=provider.register_selection(plan,approved=True)  # Click is explicit approval.
             bundle["registered"]=result
             st.session_state["sqlite_last_result"]=result
+            from dashboard.components.waepi import event as waepi_event
+            waepi_event("registered")   # Only after register_selection returned (committed).
             # Notified only after the registration call returned (committed).
             notify("SQLite 등록 완료",result.get("wafer_id") or bundle.get("wafer_label") or bundle["common_metadata"].get("wafer") or result["batch_id"],
                    "등록 완료",count=result.get("registered_count",result.get("image_count")),level="success",
@@ -595,6 +597,8 @@ def render_registration(mode,dataset_role,upload_slot=None):
             bundle["files"].cleanup()
             st.rerun()
         except (ValueError,OSError,RuntimeError,sqlite3.Error) as exc:
+            from dashboard.components.waepi import event as waepi_event
+            waepi_event("register_failed")
             notify("SQLite 저장 실패","이미지 등록","실패 · 저장되지 않음",count=count,level="error",
                    key=("register_failed",uuid.uuid4().hex))
             _show_error("등록 실패.",exc)
@@ -695,7 +699,7 @@ def render_review():
 def exposure_text(value,unit=None):
     """Condition label shared by the Wafer table and Wafer detail (same grouping, same counts).
 
-    TASK18-B-13A.2: value + display unit (unrecorded -> mJ/cm²; a recorded unit stays its own condition).
+    TASK18-B-18: value + display unit (exposure is a time in s; legacy mJ text is shown as s).
     """
     from dashboard.units import exposure_display
     return exposure_display(value,unit,missing="미확인")

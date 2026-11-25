@@ -280,15 +280,15 @@ class InspectionTabsTests(FinalUIBase):
         self.assertFalse(any("공정 조건은 선택한 데이터 소스의 Metadata입니다." in c.value for c in at.caption))
         self.assertFalse(any("Wafer Map·선택 이미지·공정 조건" in c.value for c in at.caption))
         heads=" | ".join(m.value for m in at.markdown)
-        for title in ("조건별 평균 Line Width","설계 대비 오차율","이미지별 평균 분포 (Line / Gap)"):
+        for title in ("조건별 평균 Line Width","설계 대비 오차율","조건별 결함 개수 비율"):
             self.assertEqual(heads.count('<span class="ia-graph-title">'+title+'<span class="ia-graph-help"'),2,title)  # 노광·PEB.
-        # TASK18-B-13A.1: Fail trend first among the four detail expanders (each axis tab); mJ/cm² display unit.
+        # TASK18-B-13A.1: Fail trend first among the four detail expanders (each axis tab); s display unit.
         labels=[e.label for e in at.expander if e.label in ("Wafer별 Die/Row Fail 경향","조건별 요약","조건별·Wafer별 상세 결과","대상 이미지 Metadata")]
         self.assertEqual(labels,["Wafer별 Die/Row Fail 경향","조건별 요약","조건별·Wafer별 상세 결과","대상 이미지 Metadata"]*2)
         self.assertTrue(all(not e.proto.expanded for e in at.expander if e.label in labels))
-        self.assertIn("X: 노광 조건 (mJ/cm²)",heads);self.assertIn("X: PEB 조건 (s)",heads)
-        top=[t.label for t in at.tabs if t.label in ("Wafer / Image","선폭 / 오차율","Repeatability","Lighting")]
-        self.assertEqual(top,["Wafer / Image","선폭 / 오차율","Repeatability","Lighting"])
+        self.assertIn("X: 노광 조건 (s)",heads);self.assertIn("X: PEB 조건 (s)",heads)
+        top=[t.label for t in at.tabs if t.label in ("Wafer / Image","선폭 / 오차율 / 결함","Repeatability","Lighting")]
+        self.assertEqual(top,["Wafer / Image","선폭 / 오차율 / 결함","Repeatability","Lighting"])
         self.assertFalse(any(s.key=="inspection_batch" for s in at.selectbox))
         self.assertFalse(any("B / INSPECTION" in m.value for m in at.main.markdown))
 

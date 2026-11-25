@@ -1,7 +1,7 @@
 import streamlit as st
 from dashboard.components.layout import page_title,placeholder,detail_navigation
 
-page_title("AI 활용","향후 AI 적용 전후의 작업 흐름과 활용 도구를 정리할 공간입니다.","AI / PLACEHOLDER")
+page_title("AI 활용","","AI / PLACEHOLDER")
 before_after,tools=st.tabs(["Before & After AI","AI Tool"])
 with before_after:
     placeholder("AI 적용 전후 작업 흐름",

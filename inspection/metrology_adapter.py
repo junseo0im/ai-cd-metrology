@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 from numbers import Integral, Real
 from pathlib import Path
 import sys
@@ -11,7 +12,9 @@ import time
 from contracts.analysis_contract import Y_FRACTIONS
 
 ROOT = Path(__file__).resolve().parents[1]
-TEAM_UNET = ROOT / "runtime_data/external_incoming/unet_linewidth_metrology"
+# The team U-Net engine folder. IDA_TEAM_UNET_DIR selects another (e.g. a staged new version for validation);
+# without it the existing engine folder is used unchanged.
+TEAM_UNET = Path(os.environ.get("IDA_TEAM_UNET_DIR") or ROOT / "runtime_data/external_incoming/unet_linewidth_metrology").resolve()
 IDENTIFIERS = ("wafer_id", "die_id", "site_code", "batch_id", "analysis_run_id")
 
 

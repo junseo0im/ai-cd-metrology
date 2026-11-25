@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "profiles": [
+    {
+      "profile_id": "w5-batch02-optiview-20x-v1",
+      "calibration_id": "optiview-native-0.1592",
+      "magnification": 20,
+      "um_per_px": 0.1592,
+      "unit": "um/native_px",
+      "approved": true,
+      "scope": {
+        "batch_ids": [
+          "BATCH-7896834d126b4861bb9cf6fdee44b091"
+        ],
+        "wafer_ids": [
+          "W5"
+        ],
+        "condition_ids": [
+          "COND-W5-BATCH02-20X-V1"
+        ],
+        "image_ids": [
+          "IMG-02330982147f43d7b4153145ab24221e",
+          "IMG-0631207356df49f09fc105c693dd24e5",
+          "IMG-0b2eb79c8bb045daba7b9dc3bfb4695e",
+          "IMG-0ec58b2c575a4a45ab57e312ec59fae6",
+          "IMG-12778bffe4324162a68ba29cdc6c8c0c",
+          "IMG-1512a12d89d04c888d4fd7df04e72ce7",
+          "IMG-1609586bc472491e9ab407e404faa076",
+          "IMG-2884db02fe3c4d63a66c374099d743a9",
+          "IMG-2c7c044fe24345f8aad96a451a455701",
+          "IMG-2e65a733a6764ea49f3f60f35d87eb26",
+          "IMG-2f0938797fd342848fd561ad3c4eeae9",
+          "IMG-397871dde2784dfcbbbd1cc60268540d",
+          "IMG-3af6acc1887f41b69944b1fc1189fd1e",
+          "IMG-3c698c0e5710489e92006402e01407e3",
+          "IMG-3d6145a8bc48488786f738d0999aed1b",
+          "IMG-3d8f7b2ef68444c09f1ac3d465485eed",
+          "IMG-3e2ed237e90b4eb8a4fe5eed07414343",
+          "IMG-40182c2ab80942948147f5c7d66ffe95",
+          "IMG-457b26216b6b4cb6b9473ed7b22fe444",
+          "IMG-4c94624ca0cf4a5da8f59ce56da1207f",
+          "IMG-5028e7dd434b46efbb0aeac7cc94b9c4",
+          "IMG-531d6f802c514ad3a4e2e93a255853a2",
+          "IMG-56b9283078b94648a17edd0f7678028f",
+          "IMG-57eca064ca764e37be03e6cd62c7f079",
+          "IMG-5854edd780564162a38839a04f56163c",
+          "IMG-5eec4e6baa2a440cae901ba6cabde545",
+          "IMG-604bbf24e4dc48ca8a1ab1338ccaf712",
+          "IMG-680a0294562a42c4902a634b09a941f5",
+          "IMG-6967ab5ffe924cf9aba8626f8ca3900f",
+          "IMG-6bf5d0594acf47079e80ea327332eb57",
+          "IMG-6d58834ab2df4666a3a02ec78d431dce",
+          "IMG-717ddef2aa794097b0de98fdbe2f4c98",
+          "IMG-72326bc1c23d4e32a0e979e8f6b3d37b",
+          "IMG-7299f6d1371e44c99f40d73d658a5804",
+          "IMG-76b9458d511c4a7d95314451de9e63da",
+          "IMG-7b880715f09e4683ae451d1452f2af68",
+          "IMG-7e2805347dc0410eac1bc5ffd4b6b300",
+          "IMG-804ceda0d4a4472faa00f6c79621d361",
+          "IMG-829cf5901e414dae93b6cad47e004d88",
+          "IMG-8cb53a9087c84a0b882e482b4384e9a3",
+          "IMG-917614decb1a428c9d101c4c54c0eef7",
+          "IMG-92e1ff298fc346fa9f571f195ce1e98f",
+          "IMG-94bd8b27b9734502bbeb4342836d2599",
+          "IMG-978b69178bee4cb7b738e6f9380f864b",
+          "IMG-98b2dd5ec050459e8ebf305560800ad1",
+          "IMG-9e64bf5400f440aea935485d82e77f6c",
+          "IMG-b96e57d96bef4b72b4c7272f92a1df34",
+          "IMG-b9d1358f3ae84575b59582d0090d7b63",
+          "IMG-bbae858f68644c059698c7464bab1910",
+          "IMG-c4d784fb17fc458dba2526e0a00a1cf1",
+          "IMG-c5487e7d5ea442189482ece1ba8da583",
+          "IMG-cd11e2e33a8f44aa91b8385a59b06352",
+          "IMG-cf7fc089ee564c1ebf45f9f26fbdcbb9",
+          "IMG-d07bc5d049f2414c93705f210bcddac6",
+          "IMG-d342248ffde3481c9bf40bd51f053deb",
+          "IMG-d4751a5ebcf1451ca87fd8562da65174",
+          "IMG-d528b66a7f244961be209d21f2dfb489",
+          "IMG-d5a9e6aa66864fdfa7fe43f79714e095",
+          "IMG-d9e3c0fa67ab4b0d8d21dfe5a59193ae",
+          "IMG-db8763aaae1f4d72b1357afefb6aae3b",
+          "IMG-dcc148b361a8461880881844dd04b439",
+          "IMG-e6c66d09bd8c41a090fd161fb55641ab",
+          "IMG-eae98c3f2c3f46b2b917e6b3fb6823ee",
+          "IMG-ed0771e2b9cf4c27be04326ba9f450b5",
+          "IMG-f370789381a24dd7a8d75ca83adefd05",
+          "IMG-f57a9c28c9a94fcb840aeb066e116852",
+          "IMG-f76e49ffff4f46beb4663f2b1cdd1206",
+          "IMG-fbbcc8f006d5474fa3f37441293b61fa",
+          "IMG-ff4f5841cdbd48728818be4fbc5fac95"
+        ]
+      },
+      "evidence": {
+        "source": "user_confirmation",
+        "same_capture_setup": true,
+        "description": "User confirmed all 69 W5 Batch 02 images are 20x and use the same microscope, camera and capture settings as the existing 0.1592 um/native px calibration. Scope excludes all other registered images."
+      }
+    }
+  ],
+  "upload_defaults": [
+    {
+      "profile_id": "optiview-20x-upload-default-v1",
+      "source_profile_id": "w5-batch02-optiview-20x-v1",
+      "calibration_id": "optiview-native-0.1592",
+      "magnification": 20,
+      "um_per_px": 0.1592,
+      "unit": "um/native_px",
+      "approved": true,
+      "condition_id": "COND-OPTIVIEW-20X-UPLOAD-DEFAULT-V1",
+      "upload_modes": [
+        "wafer_batch",
+        "single_image",
+        "repeatability"
+      ],
+      "evidence": {
+        "source": "user_confirmation",
+        "same_capture_setup": true,
+        "description": "TASK 18-A-1 follow-up: user directed that new Data Control Center uploads (ZIP, single PNG, multiple PNGs) reuse the approved 20x capture setup and the existing 0.1592 um/native px calibration of w5-batch02-optiview-20x-v1. Applies only to new registrations without an explicit capture condition; Lighting and explicit settings are excluded; registered images are not modified."
+      }
+    }
+  ]
+}

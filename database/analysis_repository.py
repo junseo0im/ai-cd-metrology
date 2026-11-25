@@ -211,8 +211,8 @@ class AnalysisRepository:
                     raise AnalysisStorageError("MODEL PD state contradicts result")
                 if outcome=="POLICY_REVIEW_REQUIRED" and not (
                     raw["status"]=="SKIPPED" and defect.get("status")=="SUCCESS" and
-                    metrology.get("status")=="SKIPPED" and state=="POLICY_REVIEW_REQUIRED" and pd_sources=={"HEURISTIC"}):
-                    raise AnalysisStorageError("HEURISTIC PD state contradicts result")
+                    metrology.get("status")=="SKIPPED" and state=="POLICY_REVIEW_REQUIRED" and pd_sources and pd_sources<={"HEURISTIC","RULE"}):
+                    raise AnalysisStorageError("non-model (HEURISTIC/RULE) PD state contradicts result")
                 if outcome in ("COMPLETE","QUALITY_REVIEW_REQUIRED","PARTIAL_MEASUREMENT"):
                     if not (raw["status"]=="SUCCESS" and defect.get("status")=="SUCCESS" and
                             metrology.get("status")=="SUCCESS" and state=="NO_PD" and not pd_sources):

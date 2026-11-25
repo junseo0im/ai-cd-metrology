@@ -215,8 +215,9 @@ def _validate_result(result, request, analysis_dir):
             if "MODEL_POSTPROCESSED" not in pd_sources or metrology.get("status") != "SKIPPED":
                 raise ValueError("MODEL PD policy does not match detection/stage")
         elif state == "POLICY_REVIEW_REQUIRED":
-            if pd_sources != {"HEURISTIC"} or metrology.get("status") != "SKIPPED":
-                raise ValueError("HEURISTIC PD policy does not match detection/stage")
+            # Non-model PD only (HEURISTIC and/or RULE, TASK18-B-22).
+            if not pd_sources or not pd_sources <= {"HEURISTIC", "RULE"} or metrology.get("status") != "SKIPPED":
+                raise ValueError("non-model PD policy does not match detection/stage")
         elif state == "NO_PD" and pd_sources:
             raise ValueError("PD detection cannot be classified NO_PD")
         if state in ("MODEL_PD_EXCLUDED", "POLICY_REVIEW_REQUIRED"):

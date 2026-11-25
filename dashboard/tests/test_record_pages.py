@@ -190,7 +190,16 @@ class RecordPageTests(unittest.TestCase):
             for kind in ["experiment_conditions","critical_rules"]:
                 at=self.app(kind,admin=False)
                 self.assertEqual([t.label for t in at.tabs],[title for key,title,rows in definition(kind)["tabs"]])
-                self.assertIn(NOTICE,[row.value for row in at.info])
+                # TASK18-B-20: only the GUEST note above the tables; one '탭 수정 · 버전' caption per tab (under its table).
+                self.assertEqual([row.value for row in at.info],["GUEST 조회 전용 — 기록 수정은 관리자 로그인이 필요합니다."])
+                self.assertNotIn(NOTICE,[row.value for row in at.caption])
+                self.assertFalse(any(row.value.startswith(("기록 편집 권한","마지막 수정","기록 파일:")) for row in at.caption))
+                notes=[row.value for row in at.caption if row.value.startswith("탭 수정: ")]
+                self.assertEqual(len(notes),len(definition(kind)["tabs"]))
+                for tab in at.tabs:   # Inside each tab: table first, then its revision caption.
+                    kinds=[type(node).__name__ for node in tab.children.values()]
+                    self.assertLess(max(i for i,k in enumerate(kinds) if k=="Dataframe"),
+                                    max(i for i,k in enumerate(kinds) if k=="Caption"),tab.label)
                 edits=[row for row in at.button if row.key and row.key.startswith("record_") and row.key.endswith("_edit")]
                 self.assertTrue(edits and all(row.disabled for row in edits))
                 self.assertFalse(any(row.key and "_editor_" in row.key for row in at.dataframe))

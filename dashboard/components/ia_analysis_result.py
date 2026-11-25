@@ -250,6 +250,17 @@ def render_analysis_summary(view):
     render_analysis_details(view)
 
 
+def _derivation_text(index,detections):
+    """r33 S -> P split (TASK18-B-22): which S a derived P came from, by the stored link."""
+    d=detections[index]
+    if d.get("team_source")=="from_s":
+        parent=d.get("derived_from_index")
+        return (f"S #{parent+1}에서 분리된 P (그래프는 S와 1건)" if isinstance(parent,int) and 0<=parent<len(detections)
+                else "S에서 분리된 P · 원래 S 확인 불가")
+    children=[i+1 for i,x in enumerate(detections) if x.get("team_source")=="from_s" and x.get("derived_from_index")==index]
+    return ("P #"+", #".join(map(str,children))+" 분리 원본 S") if children else "-"
+
+
 def render_analysis_details(view,where=""):
     """Existing detail expanders of ONE image's stored run; `where` (e.g. 'lt') is shown in the labels."""
     if view is None or view["state"]!="OK":
@@ -264,9 +275,13 @@ def render_analysis_details(view,where=""):
     detections=detail["detections"]
     if detections:
         with st.expander(f"결함 검출 상세{suffix} ({len(detections)}건)"):
-            data_table(pd.DataFrame([{"class":d.get("class_code"),"confidence":d.get("confidence"),
+            # r33 columns (team source, S -> P derivation) right after class so they stay in view (TASK18-B-22).
+            data_table(pd.DataFrame([{"#":i+1,"class":d.get("class_code"),
+                **({"파생 관계":_derivation_text(i,detections)} if any(x.get("team_source")=="from_s" for x in detections) else {}),
+                **({"팀원 출처":d["team_source"]} if any("team_source" in x for x in detections) else {}),
+                "confidence":d.get("confidence"),
                 "bbox (x1,y1,x2,y2)":", ".join(f"{v:.1f}" for v in d.get("bbox_xyxy",[])),"source":d.get("source")}
-                for d in detections]))
+                for i,d in enumerate(detections)]))
     if excluded:
         return  # Nothing was measured or judged; no empty PN/PT tables.
     with st.expander("Line 판정 (PN/PT)"+suffix):
@@ -296,7 +311,11 @@ def render_stage_overlay(view,stage,shown):
     item=view["overlays"].get(stage) or {}
     row=view["row"]
     if item.get("path"):
-        st.image(item["path"],width="stretch")
+        try:
+            st.image(item["path"],width="stretch")
+        except Exception as exc:  # A stored file that cannot be decoded must not break the I&A page.
+            st.warning(label+": 저장된 Overlay 이미지를 열 수 없습니다 ("+type(exc).__name__+")")
+            return
         if stage=="defect" and view.get("detail"):
             count=len(view["detail"]["detections"])
             st.caption(f"결함 검출 {count}건" if count else "결함 검출 0건 · Overlay에 표시할 결함 없음")

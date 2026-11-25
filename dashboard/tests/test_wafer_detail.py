@@ -70,8 +70,8 @@ class WaferDetailCopyTests(unittest.TestCase):
             "SELECT b.batch_id,r.exposure_value,b.peb_temperature_c,r.exposure_unit FROM upload_batches b JOIN wafers w ON w.wafer_id=b.wafer_id "
             "JOIN process_runs r ON r.process_run_id=COALESCE(b.process_run_id,w.process_run_id) WHERE b.wafer_id=?",(wafer,)).fetchall()
         fmt=lambda v,none:none if v is None else f"{v:g}"
-        # TASK18-B-13A.2 display rule, re-implemented here: unrecorded unit -> mJ/cm², recorded unit as stored.
-        label=lambda e,u:"미확인" if e is None else f"{e:g} "+(u if u else "mJ/cm²")
+        # TASK18-B-13A.2 display rule, re-implemented here: unrecorded unit -> s, recorded unit as stored.
+        label=lambda e,u:"미확인" if e is None else f"{e:g} "+(u if u else "s")
         ids=[b for b,e,p,u in rows if label(e,u)==exposure and fmt(p,"—")==peb]
         marks=",".join("?"*len(ids))
         images=self.conn.execute(f"SELECT COUNT(*) FROM images WHERE batch_id IN ({marks})",ids).fetchone()[0]
