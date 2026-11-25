@@ -7,7 +7,7 @@ from dashboard.components.process_analysis import render_process_analysis
 from dashboard.components.ia_analysis_result import render_analysis_summary,render_analysis_details,render_die_summary,render_image_summary
 from dashboard.components.inspection_wafer import die_hover_lines,CRITICALITY_STYLES
 CRITICALITY_COLORS={k.value:c for k,(_,c) in CRITICALITY_STYLES.items()}
-from dashboard.components.ia_modes import render_mode_tab
+from dashboard.components.ia_single_images import render_single_image_tab
 from dashboard.components.images import image_panel
 from dashboard.components.tables import data_table
 from dashboard.navigation import navigate
@@ -17,9 +17,9 @@ sqlite_images=st.session_state.get("_wafer_source","SQLite")=="SQLite"
 
 
 def render_sqlite_page():
-    """Operational I&A: SQLite only, four tabs. Stored AI results are read, never recomputed."""
+    """Operational I&A: SQLite only, three tabs. Stored AI results are read, never recomputed."""
     st.session_state["ia_sqlite_selected_image_id"]=None
-    wafer_tab,width_tab,repeat_tab,light_tab=st.tabs(["Wafer / Image","선폭 / 오차율 / 결함","Repeatability","Lighting"])
+    wafer_tab,image_tab,width_tab=st.tabs(["Wafer","Image","선폭 / 오차율 / 결함"])
     with wafer_tab:
         left,right=st.columns(2,gap="medium")  # TASK18-B-14B: Map 50% · images 50%
         with left,st.container(border=True,key="card_ia_map"):
@@ -55,16 +55,18 @@ def render_sqlite_page():
                 elif st.session_state.get("ia_sqlite_selected_image_id"):
                     st.info("이 이미지의 저장된 분석 결과가 없습니다 · Data Control Center에서 분석을 실행할 수 있습니다.")
     provider=map_context["provider"] if map_context else None
+    with image_tab:
+        # Single Image results; the provider is opened here too so the tab works without any Wafer context.
+        from dashboard.sqlite_provider import runtime_provider
+        try:
+            single_provider=provider or runtime_provider()
+        except (OSError,RuntimeError,ValueError):
+            single_provider=None
+        render_single_image_tab(single_provider)
     with width_tab,st.container(border=True,key="card_ia_trend"):
         # TASK18-B-13A: title, scope summary, '분석 조건' and Simulation share one compact row.
         render_process_analysis("SQLite",provider,map_context.get("scope_label") if map_context else None,
                                 title="공정 조건별 분석",on_simulation=lambda:navigate("simulation"))
-    with repeat_tab,st.container(border=True,key="card_ia_repeatability"):
-        st.subheader("Repeatability · 반복 촬영 그룹")
-        render_mode_tab(provider,"repeatability")
-    with light_tab,st.container(border=True,key="card_ia_lighting"):
-        st.subheader("Lighting · 조명 조건")
-        render_mode_tab(provider,"lighting")
 
 
 if sqlite_images:

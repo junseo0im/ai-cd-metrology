@@ -287,12 +287,14 @@ class InspectionTabsTests(FinalUIBase):
         self.assertEqual(labels,["Wafer별 Die/Row Fail 경향","조건별 요약","조건별·Wafer별 상세 결과","대상 이미지 Metadata"]*2)
         self.assertTrue(all(not e.proto.expanded for e in at.expander if e.label in labels))
         self.assertIn("X: 노광 조건 (s)",heads);self.assertIn("X: PEB 조건 (s)",heads)
-        top=[t.label for t in at.tabs if t.label in ("Wafer / Image","선폭 / 오차율 / 결함","Repeatability","Lighting")]
-        self.assertEqual(top,["Wafer / Image","선폭 / 오차율 / 결함","Repeatability","Lighting"])
+        top=[t.label for t in at.tabs if t.label in ("Wafer","Image","선폭 / 오차율 / 결함","Repeatability","Lighting")]
+        self.assertEqual(top,["Wafer","Image","선폭 / 오차율 / 결함"])
         self.assertFalse(any(s.key=="inspection_batch" for s in at.selectbox))
         self.assertFalse(any("B / INSPECTION" in m.value for m in at.main.markdown))
 
-    def test_07_repeatability_and_lighting_tabs_use_sqlite_groups(self):
+    def test_07_repeatability_and_lighting_tabs_removed_sidebar_pages_kept(self):
+        # I&A Image tab change: the I&A Repeatability/Lighting tabs are removed; the sidebar
+        # 반복촬영 분석 / 밝기 분석 pages (components/comparison.py) stay as they were.
         inputs=self.stage([self.png("w1_11_c_r1.png",130),self.png("w1_11_c_r2.png",131)])
         for index,item in enumerate(inputs,1):item["repeat_index"]=index
         self.register(inputs,"repeatability")
@@ -300,14 +302,12 @@ class InspectionTabsTests(FinalUIBase):
         light[0]["acquisition_condition"]={"condition_id":"COND-LIGHT-40X","magnification":40.0,"illumination_setting":"lg","auto_exposure":0}
         self.register(light,"lighting")
         at=self.app("pages/inspection_analysis.py")
-        repeat=next(d.value for d in at.dataframe if "반복 번호" in d.value.columns)
-        self.assertEqual(repeat.iloc[0][["Wafer","Die","Site","반복 번호","이미지 수"]].tolist(),["W1","11","c","1, 2",2])
-        self.assertEqual(repeat.iloc[0]["입력 상태"],"REVIEW_REQUIRED 2")              # Policy kept, not relaxed.
-        lighting=next(d.value for d in at.dataframe if "조명 설정" in d.value.columns)
-        row=lighting.iloc[0]
-        self.assertEqual((row["조명 설정"],row["배율"],row["Auto Exposure"],row["입력 상태"]),("lg","40.0","OFF","BLOCKED"))
-        self.assertNotEqual(row["제한 사유"],"-")                                       # Restriction reason shown.
-        self.assertTrue(any("자동 실행 대상에서 제외" in c.value for c in at.caption))
+        self.assertFalse(any(t.label in ("Repeatability","Lighting") for t in at.tabs))
+        self.assertFalse(any("반복 번호" in d.value.columns or "조명 설정" in d.value.columns for d in at.dataframe))
+        for page,title in (("pages/repeatability.py","Repeatability"),("pages/lighting.py","Lighting")):
+            at.switch_page(page).run()
+            self.assertFalse(at.exception,[e.value for e in at.exception])
+            self.assertEqual(at.title[0].value,title)
 
 
 class RegistrationNotificationTests(unittest.TestCase):

@@ -37,7 +37,11 @@ def stored_results(provider):
 
 def source_metadata(source, provider=None):
     if source=="SQLite":
-        return metadata_frame(collect_images(provider))
+        images=collect_images(provider)
+        # Single Images are viewed in the I&A Image tab only (not in the Wafer Map or these graphs).
+        if "upload_mode" in images:
+            images=images[images["upload_mode"]!="single_image"].reset_index(drop=True)
+        return metadata_frame(images)
     images=mock.images().copy()
     batches=mock.batches().set_index("batch_id")
     images["exposure_value"]=images["batch_id"].map(batches["exposure"])

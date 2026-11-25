@@ -26,6 +26,7 @@ CRITICALITY_STYLES = {
     PatternCriticality.NOT_EVALUATED: ("미평가", "#b0bac7"),
 }
 POSITION_ORDER = ("lt", "c", "rb")
+SINGLE_IMAGE_MODE = "single_image"  # Excluded from the Wafer Map; shown in the I&A Image tab.
 DIE_CODES = tuple(f"{row}{col}" for row in range(1,4) for col in range(1,9))
 
 
@@ -297,6 +298,11 @@ def wafer_context(prefix, *, source_slot=None, wafer_slot=None, batch_filter=Fal
             provider=runtime_provider()
             wafers=provider.wafers()["wafer_id"].tolist()
             batches=provider.batches()
+            # Single Images are shown only in the I&A Image tab, never on the Wafer Map.
+            batches=batches[batches["upload_mode"]!=SINGLE_IMAGE_MODE]
+            mapped=({w for ids in batches["wafer_ids"] for w in ids} if "wafer_ids" in batches
+                    else set(batches["wafer_id"]))
+            wafers=[w for w in wafers if w in mapped]
         except (sqlite3.Error,OSError,RuntimeError,ValueError) as exc:
             st.error("SQLite Wafer 조회 실패 · Mock으로 대체하지 않습니다. "+str(exc))
             return None
@@ -326,7 +332,7 @@ def wafer_context(prefix, *, source_slot=None, wafer_slot=None, batch_filter=Fal
         offset=0
         while True:
             page=provider.images(None,wafer_id=wafer,limit=100,offset=offset).to_dict("records")
-            images.extend(page)
+            images.extend(r for r in page if r.get("upload_mode")!=SINGLE_IMAGE_MODE)
             if len(page)<100:
                 break
             offset+=100
