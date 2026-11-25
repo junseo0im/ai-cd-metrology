@@ -1,10 +1,10 @@
 """Roboflow 탭의 결함 검사 화면 (Streamlit 전용, Gradio 미사용).
 
-모델 추론은 각자의 ROBOFLOW_API_KEY로 수행하며, 결과를 운영 DB에 저장하지 않습니다.
+모델 추론은 각자 PC의 로컬 RF-DETR ONNX(weights.onnx)로 수행하며(API 키 불필요),
+결과를 운영 DB에 저장하지 않습니다.
 설정은 본문 expander 안에 두어 대시보드 공통 sidebar를 건드리지 않습니다.
 """
 import io
-import os
 import zipfile
 
 import cv2
@@ -19,7 +19,7 @@ CONF_LABEL = {"rule": "규칙 검출", "from_s": "S 안 이물",
 
 @st.cache_resource(show_spinner="검사 모듈을 불러오는 중...")
 def _engine():
-  """inference·supervision 등 무거운 의존성은 탭을 열 때 한 번만 불러온다."""
+  """onnxruntime·supervision 등 무거운 의존성은 탭을 열 때 한 번만 불러온다."""
   from . import aoi_pipeline, defect_rules
   return aoi_pipeline, defect_rules
 
@@ -151,30 +151,49 @@ def _batch(pipeline, rules, s, key):
 
 
 def available():
-  """검사에 필요한 패키지와 API 키가 모두 준비됐는지."""
+  """검사에 필요한 패키지와 로컬 모델 파일이 모두 준비됐는지.
+
+  반환: (없는 패키지 목록, 없는 파일 경로 목록)
+  """
   missing = []
-  for module in ("cv2", "supervision", "inference"):
+  for module in ("cv2", "supervision", "onnxruntime"):
     try:
       __import__(module)
     except ImportError:
-      missing.append({"cv2": "opencv-python"}.get(module, module))
-  return missing, bool(os.environ.get("ROBOFLOW_API_KEY"))
+      missing.append({"cv2": "opencv-python-headless"}.get(module, module))
+  absent = []
+  if not missing:
+    from .defect_inference import DEFAULT_CONFIG_PATH
+    if not DEFAULT_CONFIG_PATH.is_file():
+      absent.append(str(DEFAULT_CONFIG_PATH))
+    else:
+      import json
+      try:
+        model_path = json.loads(DEFAULT_CONFIG_PATH.read_text(encoding="utf-8"))["model_path"]
+      except (OSError, ValueError, KeyError):
+        model_path = None
+      if model_path:
+        full = DEFAULT_CONFIG_PATH.parents[2] / model_path
+        if not full.is_file():
+          absent.append(str(full))
+  return missing, absent
 
 
 def render_inspection(key="defect_insp"):
   """Roboflow 탭 본문. 준비되지 않은 환경에서는 안내만 표시한다."""
-  missing, has_key = available()
+  missing, absent = available()
   if missing:
     st.info("결함 검사 실행에 필요한 패키지가 없습니다: " + ", ".join(missing))
     st.markdown("```powershell\n.\\dashboard\\.venv\\Scripts\\python.exe -m pip install "
-                + " ".join(missing) + "\n```")
+                "-r dashboard\\requirements-inspection.txt\n```")
     return
-  if not has_key:
-    st.info("환경변수 ROBOFLOW_API_KEY 가 설정되지 않아 검사를 실행할 수 없습니다.")
-    st.markdown("```powershell\n$env:ROBOFLOW_API_KEY = \"<각자의 키>\"\n```")
+  if absent:
+    st.info("로컬 모델 준비가 끝나지 않았습니다. 아래 파일을 배치해 주세요 (engines/README.md 참고).")
+    st.markdown("\n".join("- `" + path + "`" for path in absent))
     return
   pipeline, rules = _engine()
-  st.caption("RF-DETR + 도메인 규칙 후처리 · 결과는 운영 DB에 저장되지 않습니다.")
+  st.caption("RF-DETR(로컬 ONNX) + 도메인 규칙 후처리 · API 키 불필요 · "
+             "결과는 운영 DB에 저장되지 않습니다.")
   s = _settings(rules, key)
   single_tab, batch_tab = st.tabs(["단일 이미지", "여러 이미지 일괄 검사"])
   with single_tab:
