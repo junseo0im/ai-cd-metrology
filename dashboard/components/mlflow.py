@@ -195,8 +195,8 @@ def _comparison_table(runs, metrics):
         rows.append({
             "Run": labels[provider.run_id(run)],
             **{metric: provider.metric_value(run, metric) for metric in metrics},
-            "Parameter 요약": " · ".join(f"{key}={value}" for key, value in list(sorted(params.items()))[:2]) or "미기록",
-            "상태": run.get("info", {}).get("status") or "미기록",
+            "Parameter 요약": " · ".join(f"{key}={value}" for key, value in list(sorted(params.items()))[:2]) or "-",
+            "상태": run.get("info", {}).get("status") or "-",
         })
     return pd.DataFrame(rows)
 
@@ -262,7 +262,7 @@ def _comparison_display(runs, metrics, connection):
             frame["MLflow 열기"] = urls
     styled = frame.style
     if metrics:
-        styled = styled.format({metric: str for metric in metrics}, subset=metrics, na_rep="미기록")
+        styled = styled.format({metric: str for metric in metrics}, subset=metrics, na_rep="-")
         for metric in metrics:
             invalid = [index for index, run in enumerate(runs)
                        if metric in provider.pairs(run, "metrics") and provider.metric_value(run, metric) is None]
@@ -352,8 +352,7 @@ def _render_details(connection, experiments, experiment, exp_id, revision, table
     """The former browser (metric selector, graph, extra metrics, raw keys, Run detail), collapsed by default."""
     tab_names = ["Metric 비교", "Run 상세정보"]
     extra = (table or {}).get("extra", {})
-    if extra.get("classes") is not None and not extra["classes"].empty:
-        tab_names.append("클래스별 AP@50 · Recall")
+    # Per-class AP@50 (O·S·PD) is shown in the main comparison table; no separate class tab here.
     if extra.get("connection"):
         tab_names.append("연결 확인 Run")
     tab_names.append("조회 정보")
@@ -377,13 +376,10 @@ def _render_details(connection, experiments, experiment, exp_id, revision, table
             statuses = pd.Series([run.get("info", {}).get("status") or "미기록" for run in runs]).value_counts()
             st.caption("실행 상태: " + ", ".join(f"{key} {value}" for key, value in statuses.items()))
         _page_buttons("runs", tokens, response.get("next_page_token", ""))
-    if "클래스별 AP@50 · Recall" in tabs:
-        with tabs["클래스별 AP@50 · Recall"]:
-            st.dataframe(extra["classes"], hide_index=True, width="stretch", key="mf_class_table")
     if "연결 확인 Run" in tabs:
         with tabs["연결 확인 Run"]:
             st.dataframe(pd.DataFrame([{"Run 이름": provider.run_name(run), "Run ID": provider.run_id(run),
-                                        "기록 Metric": ", ".join(sorted(provider.pairs(run, "metrics"))) or "미기록"}
+                                        "기록 Metric": ", ".join(sorted(provider.pairs(run, "metrics"))) or "-"}
                                        for run in extra["connection"]]), hide_index=True, width="stretch")
     if not runs:
         with tabs["Metric 비교"]:
