@@ -407,5 +407,54 @@ class BatchRegistryTests(unittest.TestCase):
         self.assertEqual(self.counts(),before)
 
 
+class ConditionWaferIdentityTests(BatchRegistryTests):
+    """같은 파일명(W1)을 조건만 바꿔 올릴 때 조건별로 별개 Wafer가 되는지."""
+
+    # 이 Fixture의 DB는 schema v1이라 PEB 컬럼이 없다. 조건 구분은 노광만으로 확인한다.
+    def batch_for(self, batch_id, exposure):
+        return {**self.batch, "batch_id": batch_id, "wafer_id": "W1",
+                "process_run_id": f"E{exposure}", "process_run": {"exposure_value": float(exposure)},
+                "wafer_identity": "condition"}
+
+    def upload(self, batch_id, exposure, name, image_id):
+        # 이미지 내용을 서로 다르게 해 SHA 중복 후보와 섞이지 않게 한다.
+        return preview_batch(self.db, [self.image(name, image_id, pixel=40 + 30 * int(image_id[1:]))],
+                             self.batch_for(batch_id, exposure))
+
+    def test_same_label_different_condition_registers_as_separate_wafers(self):
+        first = self.upload("B1", 50, "w1_12_c.png", "I1")
+        self.assertEqual(first["status_counts"], {"VALID": 1})
+        self.assertEqual(first["images"][0]["effective_metadata"]["wafer_id"], "W1E50")
+        register_batch(self.db, first, approved=True)
+        # 같은 라벨 W1, 노광만 60 -> 전에는 INVALID였고 이제는 별개 Wafer로 등록된다.
+        second = self.upload("B2", 60, "w1_38_lt.png", "I2")
+        self.assertEqual(second["status_counts"], {"VALID": 1})
+        self.assertEqual(second["images"][0]["effective_metadata"]["wafer_id"], "W1E60")
+        register_batch(self.db, second, approved=True)
+        rows = self.db.execute("SELECT wafer_id,wafer_label FROM wafers ORDER BY wafer_id").fetchall()
+        self.assertEqual([tuple(row) for row in rows], [("W1E50", "W1"), ("W1E60", "W1")])
+        # 업로드한 원본 파일명은 그대로 보관된다 (라벨링을 다시 하지 않는다).
+        self.assertEqual(sorted(row[0] for row in
+                                self.db.execute("SELECT original_filename FROM images")),
+                         ["w1_12_c.png", "w1_38_lt.png"])
+
+    def test_same_condition_reuses_one_wafer_record(self):
+        register_batch(self.db, self.upload("B1", 50, "w1_12_c.png", "I1"), approved=True)
+        register_batch(self.db, self.upload("B2", 50, "w1_38_lt.png", "I2"), approved=True)
+        self.assertEqual(self.db.execute("SELECT COUNT(*) FROM wafers").fetchone()[0], 1)
+
+    def test_without_the_flag_nothing_changes(self):
+        batch = self.batch_for("B1", 50)
+        del batch["wafer_identity"]
+        preview = preview_batch(self.db, [self.image("w1_12_c.png", "I1")], batch)
+        self.assertEqual(preview["images"][0]["effective_metadata"]["wafer_id"], "W1")
+
+    def test_non_integer_condition_is_refused_not_merged(self):
+        preview = preview_batch(self.db, [self.image("w1_12_c.png", "I1")],
+                                self.batch_for("B1", 12.5))
+        self.assertFalse(preview["registration_ready"])
+        self.assertTrue(any("정수" in issue["message"] for issue in preview["batch_issues"]))
+
+
 if __name__ == "__main__":
     unittest.main()

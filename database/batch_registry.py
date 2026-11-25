@@ -273,8 +273,73 @@ def _wafer_summary(rows, wafers, wafer_issues):
     return summary
 
 
+def _condition_token(value, prefix):
+    """'E50' / 'P220'. None = that factor is not recorded; non-integers cannot be encoded."""
+    if value is None:
+        return ""
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value != value:
+        raise ValueError("조건 값이 숫자가 아닙니다")
+    if value < 0 or float(value) != int(value):
+        raise ValueError("조건 값은 0 이상의 정수여야 합니다")
+    return prefix + str(int(value))
+
+
+def condition_wafer_id(label, exposure_value, peb_value):
+    """Wafer record id for ONE (label, 노광, PEB) condition.
+
+    The same label under a different condition is a different physical Wafer, so it
+    becomes its own Wafer record (W1 + 노광 50 + PEB 220 -> 'W1E50P220'). The label the
+    team writes in filenames stays in wafers.wafer_label.
+    """
+    suffix = _condition_token(exposure_value, "E") + _condition_token(peb_value, "P")
+    return label + suffix if suffix else label
+
+
+def _derive_identity(batch):
+    """Opt-in Wafer identity (batch['wafer_identity'] == 'condition'). Idempotent.
+
+    Returns (batch, label_map, issue). The batch is copied, never mutated in place.
+    Without the flag nothing changes, so existing Batches keep their behaviour.
+    """
+    if batch.get("wafer_identity") != "condition":
+        return batch, {}, None
+    if "_wafer_labels" in batch:
+        # Already derived (register_batch re-previews its own batch_metadata): reuse the
+        # same mapping so the rebuilt Preview is identical to the reviewed one.
+        return batch, {label: derived for derived, label in (batch["_wafer_labels"] or {}).items()}, None
+    batch = deepcopy(batch)
+    label_map, labels = {}, {}
+    try:
+        wafers = batch.get("wafers")
+        if isinstance(wafers, dict):
+            renamed = {}
+            for label, cfg in wafers.items():
+                process = cfg.get("process_run") or {}
+                derived = condition_wafer_id(label, process.get("exposure_value"), cfg.get("peb_time_s"))
+                renamed[derived], label_map[label], labels[derived] = cfg, derived, label
+            batch["wafers"] = renamed
+        label = batch.get("wafer_id")
+        if isinstance(label, str):
+            if label in label_map:          # Multi-Wafer Batch: reuse the Wafer's own condition.
+                batch["wafer_id"] = label_map[label]
+            else:
+                process = batch.get("process_run") or {}
+                derived = condition_wafer_id(label, process.get("exposure_value"),
+                                             batch.get("peb_temperature_c"))
+                batch["wafer_id"], label_map[label], labels[derived] = derived, derived, label
+    except ValueError as error:
+        # Never merge two conditions into one Wafer silently: stop and ask for the value.
+        return batch, {}, {"status": "NEEDS_METADATA",
+                           "message": f"조건별 Wafer 구분을 쓰려면 노광·PEB가 0 이상의 정수여야 합니다 ({error})"}
+    batch["_wafer_labels"] = labels
+    return batch, label_map, None
+
+
 def _build_preview(connection, inputs, batch):
+    batch, label_map, derive_issue = _derive_identity(batch)
     common = _common_issues(connection, batch)
+    if derive_issue is not None:
+        common.append(derive_issue)
     if not inputs:
         common.append({"status": "NEEDS_METADATA", "message": "At least one image is required"})
     wafers = batch.get("wafers") if isinstance(batch.get("wafers"), dict) else None
@@ -334,6 +399,9 @@ def _build_preview(connection, inputs, batch):
                 else:
                     issues.append({"status": "NEEDS_METADATA", "message": "Filename needs manual metadata"})
         effective = row["effective_metadata"]
+        if effective and label_map:
+            # The filename keeps the team's label (w1_...); the Wafer record carries the condition.
+            effective["wafer_id"] = label_map.get(effective["wafer_id"], effective["wafer_id"])
         if effective:
             row["same_site_existing_image_ids"] = [record[0] for record in connection.execute(
                 "SELECT i.image_id FROM images i JOIN pattern_sites p ON p.physical_site_id=i.physical_site_id "
@@ -528,7 +596,7 @@ def _batch_process(connection, batch):
     return process_id
 
 
-def _ensure_wafer(connection, wafer_id, process_id, process):
+def _ensure_wafer(connection, wafer_id, process_id, process, label=None):
     """Create a NEW Wafer (and its first process record) only; existing Wafers are never changed."""
     if connection.execute("SELECT 1 FROM wafers WHERE wafer_id=?", (wafer_id,)).fetchone():
         return
@@ -538,16 +606,19 @@ def _ensure_wafer(connection, wafer_id, process_id, process):
             "VALUES (?,?,?,?,?,?)",
             (process_id, process["exposure_value"], process.get("exposure_unit"),
              process.get("recipe_version"), process.get("processed_at"), process.get("notes")))
-    connection.execute("INSERT INTO wafers(wafer_id,process_run_id) VALUES (?,?)", (wafer_id, process_id))
+    connection.execute("INSERT INTO wafers(wafer_id,process_run_id,wafer_label) VALUES (?,?,?)",
+                       (wafer_id, process_id, label))
 
 
 def _prepare_parents(connection, batch, rows):
     version=connection.execute("PRAGMA user_version").fetchone()[0]
     wafers=batch.get("wafers")
+    labels=batch.get("_wafer_labels") or {}   # Derived Wafer id -> the team's filename label.
     columns=["batch_id","wafer_id","upload_mode","dataset_role","batch_status","notes"]
     if wafers is None:
         wafer_id = batch["wafer_id"]
-        _ensure_wafer(connection, wafer_id, batch.get("process_run_id"), batch.get("process_run"))
+        _ensure_wafer(connection, wafer_id, batch.get("process_run_id"), batch.get("process_run"),
+                      labels.get(wafer_id))
         if version >= 3:
             columns.append("peb_temperature_c")
         values=[batch.get(name) for name in columns]
@@ -560,7 +631,8 @@ def _prepare_parents(connection, batch, rows):
         # v6 multi-Wafer Batch: each Wafer gets its own process reference and PEB (seconds).
         members=[]
         for wafer_id, cfg in sorted(wafers.items()):
-            _ensure_wafer(connection, wafer_id, cfg.get("process_run_id"), cfg.get("process_run"))
+            _ensure_wafer(connection, wafer_id, cfg.get("process_run_id"), cfg.get("process_run"),
+                          labels.get(wafer_id))
             process_id=_batch_process(connection, {"wafer_id": wafer_id, "process_run": cfg.get("process_run"),
                                                    "batch_process_run_id": cfg.get("batch_process_run_id")})
             members.append((wafer_id, process_id, cfg.get("peb_time_s")))

@@ -17,8 +17,14 @@ class ParsedFilename:
     legacy_defect_code: str | None
 
 
+# Wafer: digits, plus an optional 노광(E)/PEB(P) condition suffix. The suffix is never
+# written by hand: batch_registry derives it so one label under two conditions stays two
+# Wafer records (database/batch_registry.condition_wafer_id). Uploaded files keep the
+# plain w<digits>_<die>_<position> name.
+_WAFER = r"[0-9]+(?:[eE][0-9]+)?(?:[pP][0-9]+)?"
+
 _PATTERN = re.compile(
-    r"[wW](?P<wafer>[0-9]+)_(?P<die>[0-9]{2})_"
+    r"[wW](?P<wafer>" + _WAFER + r")_(?P<die>[0-9]{2})_"
     r"(?P<position>lt|c|rb)(?:_(?P<defect>[\w-]+))?\.(?i:png)"
 )
 
@@ -39,7 +45,7 @@ def parse_filename(filename: str) -> ParsedFilename:
     if row not in range(1, 4) or column not in range(1, 9):
         raise FilenameParseError(f"Invalid die code {die}: row 1..3, column 1..8 required")
     return ParsedFilename(
-        wafer_id="W" + match["wafer"], die_code=die,
+        wafer_id="W" + match["wafer"].upper(), die_code=die,
         row_index=row, column_index=column, position_code=match["position"],
         legacy_defect_code=match["defect"],
     )
@@ -57,8 +63,8 @@ def validate_metadata(*, wafer_id: str, die_code: str, position_code: str,
         raise FilenameParseError("Wafer, Die and position must be non-empty strings")
     # Validate each field before composing a grammar probe; underscores must
     # not move part of a Die/position field into another filename component.
-    if re.fullmatch(r"[wW][0-9]+", wafer_id) is None:
-        raise FilenameParseError("Invalid wafer_id: W<digits> required")
+    if re.fullmatch(r"[wW]" + _WAFER, wafer_id) is None:
+        raise FilenameParseError("Invalid wafer_id: W<digits>[E<digits>][P<digits>] required")
     if re.fullmatch(r"[1-3][1-8]", die_code) is None:
         raise FilenameParseError("Invalid die code: row 1..3, column 1..8 required")
     if position_code not in ("lt", "c", "rb"):
