@@ -172,7 +172,8 @@ class ModelPerformanceTests(unittest.TestCase):
             at = self.app()
         self.assertFalse(at.exception)
         self.assertTrue(any("MLflow 연결 실패" in row.value for row in at.warning))
-        self.assertEqual([tab.label for tab in at.tabs], ["MLflow", "Roboflow"])
+        # 결함 검사 UI가 준비된 환경에서는 Roboflow 탭 안에 하위 탭이 더 생기므로 상위 두 탭만 확인
+        self.assertEqual([tab.label for tab in at.tabs][:2], ["MLflow", "Roboflow"])
         self.assertTrue(any("연결 준비 중" in row.value for row in at.caption))
         self.assertTrue(any('모델 성능' in row.value for row in at.sidebar.markdown))
 

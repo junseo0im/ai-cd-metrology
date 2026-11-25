@@ -1,3 +1,5 @@
-﻿inference
-supervision
-opencv-python
+# 모델 성능 → Roboflow 탭의 결함 검사 UI (로컬 RF-DETR ONNX, API 키 불필요)
+# 대시보드 .venv에 설치해도 numpy·pandas 버전을 바꾸지 않는 조합 (2026-11-25 확인, numpy 2.5.5 / pandas 3.0.5)
+onnxruntime==1.32.0
+supervision==0.32.2
+opencv-python-headless==5.1.0.95
