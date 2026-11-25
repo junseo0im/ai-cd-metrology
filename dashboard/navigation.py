@@ -20,13 +20,12 @@ PAGE_SPECS = {
     "experiment_environment":("pages/experiment_environment.py","실험 환경 및 조건","experiment-environment",":material/science:"),
     "simulation":("pages/simulation.py","Simulation","simulation-preview",":material/science:"),
     "critical_criteria":("pages/critical_criteria.py","Critical 기준","critical-criteria",":material/rule:"),
-    "ai_usage":("pages/ai_usage.py","AI 활용","ai-usage",":material/psychology:"),
     "model_selection":("pages/model_selection.py","모델 선정 기준","model-selection-criteria",":material/fact_check:"),
 }
 A_PAGES = {"data_control","calibration","batch_detail","wafer_detail","image_detail"}
 B_PAGES = {"inspection_analysis","wafer_map","image_analysis","results_report","repeatability","lighting","simulation"}
 COMMON = ["main_home","data_control","inspection_analysis","dataset","model_performance",
-          "experiment_environment","critical_criteria","ai_usage","model_selection","settings"]
+          "experiment_environment","critical_criteria","model_selection","settings"]
 
 
 def make_pages():

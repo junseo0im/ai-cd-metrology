@@ -273,7 +273,7 @@ class ModelPerformanceTests(unittest.TestCase):
         self.assertTrue(raw["custom/score"].isna().iloc[1])
         rendered = ipc.open_stream(io.BytesIO(element.proto.arrow_data.styler.display_values)).read_all().to_pandas()
         self.assertEqual(float(rendered["custom/score"].iloc[0]), 0)
-        self.assertEqual(rendered["custom/score"].iloc[1], "미기록")
+        self.assertEqual(rendered["custom/score"].iloc[1], "-")                        # Not logged -> "-".
         self.assertTrue(raw["MLflow 열기"].isna().iloc[0])
         self.assertEqual(raw["MLflow 열기"].iloc[1],
                          provider.DEFAULT_TRACKING_URI + "/#/experiments/9/runs/" + "b" * 32)
@@ -363,7 +363,7 @@ class MetricPresentationTests(unittest.TestCase):
         displayed = _comparison_display(runs, ["score"], provider.Connection())
         values = displayed._translate(False, False)["body"]
         texts = [[cell.get("display_value") for cell in row] for row in values]
-        self.assertIn("미기록", texts[1])
+        self.assertIn("-", texts[1])
         self.assertIn("유효하지 않은 값", texts[2])
         self.assertEqual(list(_comparison_figure(runs, "score").data[0].y), [0])
 

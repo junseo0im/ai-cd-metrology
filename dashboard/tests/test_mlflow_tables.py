@@ -47,7 +47,10 @@ class ClassificationTests(unittest.TestCase):
         self.assertEqual(rows[2]["검증 최고 Macro F1 ↑"], "Run 없음")                  # Missing run kept visible.
         self.assertEqual(rows[3]["검증 최고 Macro F1 ↑"], mt.MISSING)                  # val/macro_f1 never substituted.
         self.assertTrue(rows[3]["오버샘플링 효과 (%p)"].startswith("비교 보류"))
-        self.assertEqual(rows[0]["Test Macro F1 ↑"], mt.MISSING)
+        self.assertEqual(mt.MISSING, "-")
+        self.assertNotIn("Test Macro F1 ↑", rows[0])                                  # test/macro_f1 never logged: column removed.
+        runs.append(run("4" * 32, "resnet18_real_only_v1", {"test/macro_f1": .5}, {"model": "resnet18"}))
+        self.assertIn("Test Macro F1 ↑", frame_rows(mt.classification_table(runs))[0])  # Logged -> column shown.
 
 
 class DetectionTests(unittest.TestCase):
@@ -77,10 +80,48 @@ class DetectionTests(unittest.TestCase):
         self.assertIn(("cccccccc", "Recall ↑"), best)                                  # .41 > .13 in GT 122.
         self.assertNotIn(("bbbbbbbb", "Recall ↑"), best)                               # Alone in GT 41: not ranked.
         self.assertFalse(any(run in ("dddddddd", "eeeeeeee") for run, _ in best))      # Val set not recorded.
-        self.assertIn("Box/Mask 정의 미확인", next(r["비고"] for r in rows if r["Run"] == "cccccccc"))
-        self.assertEqual(next(r["Box mAP@50 ↑"] for r in rows if r["Run"] == "cccccccc"), mt.MISSING)
+        for column in ("Box mAP@50 ↑", "Box mAP@50–95 ↑", "Mask mAP@50 ↑", "비고"):    # mAP columns/notes removed.
+            self.assertNotIn(column, rows[0])
+        self.assertEqual([rows[0][c] for c in ("AP@50 O ↑", "AP@50 S ↑", "AP@50 PD ↑")], ["-"] * 3)
         self.assertEqual([r["Run"] for r in rows if r["모델"] == "YOLOv8n"], ["dddddddd", "eeeeeeee"])
         self.assertEqual([c["info"]["run_id"][:8] for c in table["extra"]["connection"]], ["ffffffff"])
+
+    def test_per_class_ap50_columns_from_recorded_keys(self):
+        runs = [run("g" * 32, "RF-DETR-Seg-Small-v2-RAW-box-o-s-pd",
+                    {"test/local_box_ap50_o": .8808, "test/local_box_ap50_s": .9413, "test/local_box_ap50_pd": .9984}),
+                run("h" * 32, "yolov8s_1536", {"test/o_mAP50": .907, "test/s_mAP50": .959}, {"model_name": "yolov8s"})]
+        rows = {r["Run"]: r for r in frame_rows(mt.detection_table(runs))}
+        self.assertEqual([rows["gggggggg"][c] for c in ("AP@50 O ↑", "AP@50 S ↑", "AP@50 PD ↑")],
+                         ["0.8808", "0.9413", "0.9984"])
+        self.assertEqual(rows["hhhhhhhh"]["AP@50 PD ↑"], "-")                         # Not logged -> "-", never 0.
+
+    def test_roboflow_hosted_runs_per_class_keys_names_order_and_dataset_version(self):
+        tags = {"test_split_id": "unverified", "evaluation_source": "team_test_evaluation_table"}
+        runs = [run("r" * 32, "RF-DETR-Seg-Small-Roboflow-v2-t1",
+                    {"test/ap50_o": .858, "test/ap50_s": .926, "test/ap50_pd": .997,
+                     "test/recall_o": .864, "test/recall_s": .909, "test/recall_pd": .984},
+                    tags=dict(tags, model_name="rfdetr-seg-small", dataset_version="Photo Defects 305 - Revised Labels (v2)")),
+                run("t" * 32, "YOLO26s-Roboflow-dataa-v2-v1", {"test/ap50_o": .8379, "test/recall_o": .773},
+                    tags=dict(tags, model_name="yolo26s", dataset_version="YOLO26 comparison - 305 images")),
+                run("u" * 32, "YOLO11s-Roboflow-dataa-mpts7-v1", {"test/ap50_o": .5643, "test/recall_o": .727},
+                    tags=dict(tags, model_name="yolo11s", dataset_version="YOLO11 comparison"))]
+        table = mt.detection_table(runs)
+        rows = frame_rows(table)
+        self.assertEqual([r["모델"] for r in rows], ["YOLO11s", "YOLO26s", "RF-DETR Small"])   # Poster order.
+        self.assertEqual([r["AP@50 O ↑"] for r in rows], ["0.5643", "0.8379", "0.8580"])
+        self.assertEqual([r["Recall O ↑"] for r in rows], ["0.7270", "0.7730", "0.8640"])
+        self.assertEqual(rows[2]["Recall PD ↑"], "0.9840")
+        self.assertEqual(rows[1]["AP@50 S ↑"], "-")
+        self.assertEqual(rows[0]["평가셋"], "YOLO11 comparison")
+        self.assertEqual(table["best"], [])                                            # Different sets: never ranked.
+        self.assertNotIn("추론시간 ↓ (ms)", rows[0])                                     # No latency logged: hidden.
+        runs[0]["data"]["metrics"].append({"key": "test/avg_latency_ms", "value": 28.32})
+        runs[0]["data"]["params"] += [{"key": "trainer", "value": "roboflow_hosted"},
+                                      {"key": "model_input", "value": "384x384"}]
+        rows = {r["Run"]: r for r in frame_rows(mt.detection_table(runs))}
+        self.assertEqual(rows["rrrrrrrr"]["추론시간 ↓ (ms)"], "28.3")                   # Logged: column back.
+        self.assertEqual(rows["tttttttt"]["추론시간 ↓ (ms)"], "-")
+        self.assertEqual(rows["rrrrrrrr"]["실험 조건"], "Roboflow 학습 · 384x384")
 
     def test_generic_table_lists_every_recorded_metric_and_missing(self):
         rows = frame_rows(mt.build("another-experiment", self.runs[:2] + self.runs[-1:]))

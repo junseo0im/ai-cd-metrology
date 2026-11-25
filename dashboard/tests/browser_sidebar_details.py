@@ -30,7 +30,7 @@ def main():
             def side_link(name):
                 sidebar.get_by_role("link",name=name,exact=True).click()
             text=sidebar.inner_text()
-            positions=[text.index(label) for label in ["모델 성능","실험 환경 및 조건","Critical 기준","AI 활용","모델 선정 기준","설정"]]
+            positions=[text.index(label) for label in ["모델 성능","실험 환경 및 조건","Critical 기준","모델 선정 기준","설정"]]
             assert positions==sorted(positions),positions
             page.get_by_role("button",name="실험 환경 및 조건 열기",exact=True).click()
             page.get_by_role("heading",name="실험 환경 및 조건",exact=True,level=1).wait_for()
@@ -58,13 +58,7 @@ def main():
             for label in ["측정 Critical 기준","결함 Critical 기준"]:
                 page.get_by_role("tab",name=label,exact=True).click()
                 page.get_by_text(label+" · 미확정",exact=True).wait_for()
-            side_link("psychology AI 활용")
-            page.get_by_role("heading",name="AI 활용",exact=True,level=1).wait_for()
-            page.get_by_role("tab",name="AI Tool",exact=True).wait_for()
-            assert page.get_by_role("tab").all_text_contents()==["Before & After AI","AI Tool"]
-            page.get_by_role("tab",name="AI Tool",exact=True).click()
-            page.get_by_text("활용 도구 및 역할",exact=True).wait_for()
-            report["critical_ai_tabs"]="PASS"
+            report["critical_tabs"]="PASS"
             choose_theme(page,"Dark")
             side_link("fact_check 모델 선정 기준")
             page.get_by_role("heading",name="모델 선정 기준",exact=True,level=1).wait_for()

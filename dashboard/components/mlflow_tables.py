@@ -10,7 +10,7 @@ import pandas as pd
 
 from dashboard import mlflow_provider as provider
 
-MISSING = "미기록"
+MISSING = "-"  # Not logged in MLflow (never replaced by 0).
 WIDTH, CLASSIFICATION, DETECTION = "IDA_Width_Measurement", "IDA_Defect_Classification", "IDA_Defect_YOLO"
 
 
@@ -125,7 +125,7 @@ def classification_table(runs):
         if is_connection_run(run):
             continue
         params = provider.pairs(run, "params")
-        model = MODEL_NAMES.get(params.get("model", ""), params.get("model") or "모델 미기록")
+        model = MODEL_NAMES.get(params.get("model", ""), params.get("model") or MISSING)
         name = provider.run_name(run).lower()
         condition = next((label for token, label in CONDITIONS if token in name), "기타")
         cells.setdefault((model, condition), []).append(run)
@@ -157,6 +157,8 @@ def classification_table(runs):
         row["오버샘플링 효과 (%p)"] = " · ".join(parts) or "비교 보류 (양쪽 기록 없음)"
     best = _best(rows, "검증 최고 Macro F1 ↑", group=lambda r: "val") + _best(rows, "Test Macro F1 ↑", group=lambda r: "test")
     columns = ["모델", "조건", "검증 최고 Macro F1 ↑", "Test Macro F1 ↑", "오버샘플링 효과 (%p)", "Run"]
+    if not any(row["_v_Test Macro F1 ↑"] is not None for row in rows):  # test/macro_f1 not logged in any run.
+        columns.remove("Test Macro F1 ↑")
     help_text = {"검증 최고 Macro F1 ↑": "val/best_macro_f1 (학습 중 검증 Macro F1 최고값)",
                  "Test Macro F1 ↑": "test/macro_f1",
                  "오버샘플링 효과 (%p)": "같은 모델·같은 지표 Key가 양쪽 모두 기록된 경우에만 계산"}
@@ -171,11 +173,24 @@ def _family(run):
     text = " ".join([provider.run_name(run), tags.get("model_name", ""), params.get("model_name", ""),
                      params.get("roboflow_model_id", ""), tags.get("model_id", "")]).lower()
     for token, label in (("rf-detr", "RF-DETR Small"), ("rfdetr", "RF-DETR Small"), ("yolov11m", "YOLOv11m-Seg"),
+                         ("yolo11", "YOLO11s"), ("yolo26", "YOLO26s"),
                          ("yolov8s", "YOLOv8s"), ("yolov8n", "YOLOv8n")):
         if token in text:
             return label
     return tags.get("model_name") or provider.run_name(run)
 
+
+POSTER_CLASSES = (("o", "O"), ("s", "S"), ("pd", "PD"))  # Core defects in the poster (Open, Short, Pattern die).
+
+
+def _class_ap50(run, code):
+    """Per-class AP@50 under any of the logged key styles (Roboflow table / Ultralytics / local box eval)."""
+    return next((v for v in (_m(run, f"test/ap50_{code}"), _m(run, f"test/{code}_mAP50"),
+                             _m(run, f"test/local_box_ap50_{code}")) if v is not None), None)
+
+
+def _class_recall(run, code):
+    return next((v for v in (_m(run, f"test/recall_{code}"), _m(run, f"test/{code}_recall")) if v is not None), None)
 
 CONDITION_RULES = (("postprocess", "후처리 파이프라인"), ("real_only", "원본만"), ("oversampl", "오버샘플링"),
                    ("augment", "증강"), ("raw-box", "원본 모델 · Box 평가"), ("baseline", "원본 (Baseline)"),
@@ -186,6 +201,8 @@ def _condition(run):
     """First matching rule (most specific first) + a non-default image size."""
     name = (provider.run_name(run) + " " + provider.pairs(run, "tags").get("model_name", "")).lower()
     params = provider.pairs(run, "params")
+    if params.get("trainer") == "roboflow_hosted":  # Recorded training source + input size (Roboflow hosted runs).
+        return " · ".join(x for x in ("Roboflow 학습", params.get("model_input", "")) if x)
     label = next((text for token, text in CONDITION_RULES if token in name), "기록 조건 없음")
     if params.get("imgsz") and params.get("imgsz") != "640":
         label += " · " + params["imgsz"] + "px"
@@ -220,7 +237,9 @@ def _eval_set_base(run):
         return f"stratified v2 Test {params.get('test_images', '?')}장", (split,)
     if any(k.startswith("val/") for k in metrics) and not any(k.startswith("test/") for k in metrics):
         return "검증셋 (과거 기록)", None
-    return "평가셋 미기록", None
+    if tags.get("dataset_version"):  # e.g. Roboflow hosted runs (test_split_id 'unverified'): shown, never ranked.
+        return tags["dataset_version"], None
+    return MISSING, None
 
 
 def detection_table(runs):
@@ -236,11 +255,7 @@ def detection_table(runs):
         recall = next((v for v in (_m(run, "test/recall"), _m(run, "val/recall_box")) if v is not None), None)
         latency = _m(run, "test/avg_latency_ms")
         mask50 = next((v for v in (_m(run, "test/mask_mAP50"), _m(run, "val/map50_mask")) if v is not None), None)
-        notes = []
-        if _m(run, "test/roboflow_map50") is not None:
-            notes.append(f"Roboflow mAP@50 {_m(run, 'test/roboflow_map50'):.3f} (Box/Mask 정의 미확인)")
-        if _m(run, "test/local_box_map50_o_s_pd") is not None:
-            notes.append("Box AP50: o·s·pd 3종 평균")
+        notes = []  # mAP notes removed together with the mAP columns (poster: per-class AP@50 only).
         rows.append({"모델": _family(run), "실험 조건": _condition(run), "평가셋": label,
                      "Box mAP@50 ↑": _fmt(box50), "_v_Box mAP@50 ↑": box50,
                      "Box mAP@50–95 ↑": _fmt(box5095), "_v_Box mAP@50–95 ↑": box5095,
@@ -248,22 +263,38 @@ def detection_table(runs):
                      "추론시간 ↓ (ms)": MISSING if latency is None else f"{latency:.1f}", "_v_추론시간 ↓ (ms)": latency,
                      "Mask mAP@50 ↑": _fmt(mask50), "비고": " · ".join(notes), "Run": provider.run_id(run)[:8],
                      "_id": identity, "_start": run.get("info", {}).get("start_time") or 0})
+        for code, name in POSTER_CLASSES:  # Per-class AP@50 / Recall (poster Fig. 3).
+            ap = _class_ap50(run, code)
+            rows[-1][f"AP@50 {name} ↑"] = _fmt(ap)
+            rows[-1][f"_v_AP@50 {name} ↑"] = ap
+            rec = _class_recall(run, code)
+            rows[-1][f"Recall {name} ↑"] = _fmt(rec)
+            rows[-1][f"_v_Recall {name} ↑"] = rec
         for code in ("o", "s", "pd", "p", "sc"):
-            ap = next((v for v in (_m(run, f"test/{code}_mAP50"), _m(run, f"test/local_box_ap50_{code}")) if v is not None), None)
-            rec = _m(run, f"test/{code}_recall")
+            ap = _class_ap50(run, code)
+            rec = _class_recall(run, code)
             if ap is not None or rec is not None:
                 classes.append({"모델": _family(run), "실험 조건": _condition(run), "Run": provider.run_id(run)[:8],
                                 "클래스": code, "AP@50": _fmt(ap), "Recall": _fmt(rec)})
-    order = {"RF-DETR Small": 0, "YOLOv11m-Seg": 1, "YOLOv8s": 2, "YOLOv8n": 3}
+    # Poster order first (YOLO11 -> YOLO26 -> RF-DETR), then the earlier runs.
+    order = {"YOLO11s": 0, "YOLO26s": 1, "RF-DETR Small": 2, "YOLOv11m-Seg": 3, "YOLOv8s": 4, "YOLOv8n": 5}
     rows.sort(key=lambda r: (order.get(r["모델"], 9), r["모델"], r["평가셋"], r["실험 조건"], -r["_start"]))
     same = lambda r: r["_id"]
-    best = (_best(rows, "Box mAP@50 ↑", group=same) + _best(rows, "Box mAP@50–95 ↑", group=same)
+    ap_columns = [f"AP@50 {name} ↑" for _, name in POSTER_CLASSES]
+    recall_columns = [f"Recall {name} ↑" for _, name in POSTER_CLASSES]
+    best = (sum((_best(rows, column, group=same) for column in ap_columns + recall_columns), [])
             + _best(rows, "Recall ↑", group=same) + _best(rows, "추론시간 ↓ (ms)", lower=True, group=same))
-    columns = ["모델", "실험 조건", "평가셋", "Box mAP@50 ↑", "Box mAP@50–95 ↑", "Recall ↑", "추론시간 ↓ (ms)", "비고", "Run"]
-    if any(r["Mask mAP@50 ↑"] != MISSING for r in rows):
-        columns.insert(7, "Mask mAP@50 ↑")
-    help_text = {"평가셋": "기록된 test_split_id·평가 이미지 수. 다른 평가셋끼리는 순위를 매기지 않음",
-                 "Box mAP@50 ↑": "Box 기준 (test/mAP50 · test/local_box_map50 · val/map50_box)",
+    # mAP columns removed (Box mAP@50, mAP@50–95, Mask mAP@50); per-class AP@50 / Recall (O·S·PD) as in the poster.
+    columns = ["모델", "실험 조건", "평가셋", *ap_columns, *recall_columns, "Recall ↑", "추론시간 ↓ (ms)", "비고", "Run"]
+    if not any(r["비고"] for r in rows):
+        columns.remove("비고")
+    if not any(r["_v_추론시간 ↓ (ms)"] is not None for r in rows):  # Shown again once test/avg_latency_ms is logged.
+        columns.remove("추론시간 ↓ (ms)")
+    help_text = {"평가셋": "기록된 test_split_id·평가 이미지 수 (없으면 dataset_version). 다른 평가셋끼리는 순위를 매기지 않음",
+                 **{column: f"결함별 AP@50 (test/ap50_{code} · test/{code}_mAP50 · test/local_box_ap50_{code})"
+                    for column, (code, _) in zip(ap_columns, POSTER_CLASSES)},
+                 **{column: f"결함별 Recall (test/recall_{code} · test/{code}_recall)"
+                    for column, (code, _) in zip(recall_columns, POSTER_CLASSES)},
                  "Recall ↑": "test/recall (IoU 0.5 매칭) 또는 val/recall_box",
                  "추론시간 ↓ (ms)": "test/avg_latency_ms (이미지당 평균)",
                  "Run": "같은 이름이라도 Run ID가 다르면 별도 행"}
